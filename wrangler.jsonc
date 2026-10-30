@@ -10,5 +10,12 @@
   },
   "observability": {
     "enabled": true
+  },
+  // Public runtime vars only — NEVER put SUPABASE_SECRET_KEY here (use Cloudflare Secrets).
+  // After first deploy, set NEXT_PUBLIC_APP_URL to your real workers.dev URL.
+  "vars": {
+    "NEXT_PUBLIC_SUPABASE_URL": "https://jniyfhpwrjofdljqsdwd.supabase.co",
+    "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY": "sb_publishable_UyhHixVXD593dGb2uF46Tg_9dLHVicz",
+    "NEXT_PUBLIC_APP_URL": "https://office-pulse.jalilabbasmemon.workers.dev"
   }
 }

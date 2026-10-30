@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { DM_Sans, Source_Serif_4 } from "next/font/google";
+import { PublicEnvScript } from "@/components/providers/public-env-script";
 import "./globals.css";
 
 const dmSans = DM_Sans({
@@ -35,7 +36,10 @@ export default function RootLayout({
       lang="en"
       className={`${dmSans.variable} ${sourceSerif.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col">{children}</body>
+      <body className="min-h-full flex flex-col">
+        <PublicEnvScript />
+        {children}
+      </body>
     </html>
   );
 }

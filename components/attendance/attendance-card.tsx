@@ -1,10 +1,16 @@
 "use client";
 
-import { useCallback, useEffect, useState, useTransition } from "react";
+import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { formatDate, formatMinutes, formatTime } from "@/lib/utils";
-import { greetingForNow } from "@/lib/attendance/timezone";
+import {
+  formatShiftClock,
+  greetingForNow,
+  isEarlyLeave,
+  minutesUntilShiftEnd,
+} from "@/lib/attendance/timezone";
 import type { Attendance, Employee, OfficeSettings } from "@/types";
 
 type Props = {
@@ -27,9 +33,29 @@ export function AttendanceCard({ employee, today, office }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const [localToday, setLocalToday] = useState(today);
+  const [checkoutDialog, setCheckoutDialog] = useState<
+    null | "early" | "normal"
+  >(null);
 
   const checkedIn = Boolean(localToday?.check_in_time);
   const checkedOut = Boolean(localToday?.check_out_time);
+  const shift = employee.shifts;
+  const timezone = office?.timezone ?? "Asia/Karachi";
+
+  const locationOk =
+    office != null &&
+    distance != null &&
+    distance <= office.allowed_radius_meters;
+  const accuracyOk =
+    office != null &&
+    gps != null &&
+    gps.accuracy <= office.max_gps_accuracy_meters;
+  const canPunch = Boolean(gps && locationOk && accuracyOk);
+
+  const earlyNow = useMemo(() => {
+    if (!shift) return false;
+    return isEarlyLeave(new Date().toISOString(), shift.end_time, timezone);
+  }, [shift, timezone, checkoutDialog]);
 
   const refreshGps = useCallback(() => {
     if (!navigator.geolocation) {
@@ -46,7 +72,6 @@ export function AttendanceCard({ employee, today, office }: Props) {
         };
         setGps(next);
         if (office) {
-          // Approximate client-side preview only — server re-validates
           const R = 6371000;
           const toRad = (d: number) => (d * Math.PI) / 180;
           const dLat = toRad(office.latitude - next.latitude);
@@ -75,15 +100,36 @@ export function AttendanceCard({ employee, today, office }: Props) {
     refreshGps();
   }, [refreshGps]);
 
-  function punch(action: "check-in" | "check-out") {
+  function requireReadyForPunch(): boolean {
     setError(null);
     setMessage(null);
 
     if (!gps) {
       setError("Waiting for GPS. Please allow location access.");
       refreshGps();
-      return;
+      return false;
     }
+    if (!office) {
+      setError("Office settings are not configured.");
+      return false;
+    }
+    if (!accuracyOk) {
+      setError(
+        `GPS accuracy is too low (${Math.round(gps.accuracy)}m). Move to an open area or use a phone.`
+      );
+      return false;
+    }
+    if (!locationOk) {
+      setError(
+        `You appear outside the office (${distance}m away). Connect to office Wi‑Fi and stand inside the office.`
+      );
+      return false;
+    }
+    return true;
+  }
+
+  function punch(action: "check-in" | "check-out") {
+    if (!requireReadyForPunch() || !gps) return;
 
     startTransition(async () => {
       const res = await fetch(`/api/attendance/${action}`, {
@@ -94,28 +140,32 @@ export function AttendanceCard({ employee, today, office }: Props) {
       const data = await res.json();
       if (!res.ok) {
         setError(data.message ?? "Unable to complete attendance.");
+        setCheckoutDialog(null);
         return;
       }
       setLocalToday(data.attendance);
       setMessage(data.message);
       setDistance(data.distanceMeters ?? distance);
+      setCheckoutDialog(null);
     });
   }
 
-  const shift = employee.shifts;
-  const locationOk =
-    office && distance != null && distance <= office.allowed_radius_meters;
-  const accuracyOk =
-    office && gps && gps.accuracy <= office.max_gps_accuracy_meters;
+  function requestCheckOut() {
+    if (!requireReadyForPunch()) return;
+    setCheckoutDialog(earlyNow ? "early" : "normal");
+  }
+
+  const minutesLeft =
+    shift != null ? minutesUntilShiftEnd(shift.end_time, timezone) : 0;
 
   return (
     <Card className="space-y-5">
       <div>
         <p className="text-sm text-slate-500">
-          {greetingForNow(office?.timezone)}, {employee.name.split(" ")[0]}
+          {greetingForNow(timezone)}, {employee.name.split(" ")[0]}
         </p>
         <p className="mt-1 text-xl font-semibold text-slate-900">
-          {formatDate(new Date(), office?.timezone)}
+          {formatDate(new Date(), timezone)}
         </p>
       </div>
 
@@ -137,13 +187,23 @@ export function AttendanceCard({ employee, today, office }: Props) {
         <div>
           <p className="text-slate-500">Check in</p>
           <p className="font-medium text-slate-900">
-            {formatTime(localToday?.check_in_time, office?.timezone)}
+            {formatTime(localToday?.check_in_time, timezone)}
+            {localToday?.is_late ? (
+              <span className="ml-2 rounded bg-amber-100 px-1.5 py-0.5 text-xs font-semibold text-amber-800">
+                LATE
+              </span>
+            ) : null}
           </p>
         </div>
         <div>
           <p className="text-slate-500">Check out</p>
           <p className="font-medium text-slate-900">
-            {formatTime(localToday?.check_out_time, office?.timezone)}
+            {formatTime(localToday?.check_out_time, timezone)}
+            {localToday?.is_early_leave ? (
+              <span className="ml-2 rounded bg-orange-100 px-1.5 py-0.5 text-xs font-semibold text-orange-800">
+                EARLY
+              </span>
+            ) : null}
           </p>
         </div>
       </div>
@@ -168,9 +228,7 @@ export function AttendanceCard({ employee, today, office }: Props) {
           text={
             gps
               ? `${Math.round(gps.accuracy)}m${
-                  office
-                    ? ` / max ${office.max_gps_accuracy_meters}m`
-                    : ""
+                  office ? ` / max ${office.max_gps_accuracy_meters}m` : ""
                 }`
               : gpsError
                 ? "Unavailable"
@@ -180,15 +238,14 @@ export function AttendanceCard({ employee, today, office }: Props) {
         <StatusRow
           label="Network"
           ok={true}
-          text="Office public IP checked on punch"
+          text="Office Wi‑Fi IP verified on server at punch"
         />
       </div>
 
-      {gps && office && gps.accuracy > office.max_gps_accuracy_meters && (
+      {!canPunch && !gpsError && (
         <p className="rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-800">
-          GPS accuracy is too coarse ({Math.round(gps.accuracy)}m). Desktops
-          often fail this check — open this page on a phone at the office, or
-          ask admin to raise Max GPS accuracy in Settings for testing.
+          Check-in and check-out both require office Wi‑Fi (public IP) and GPS
+          inside the office radius. Fix location/accuracy before punching.
         </p>
       )}
 
@@ -208,7 +265,7 @@ export function AttendanceCard({ employee, today, office }: Props) {
           <Button
             size="lg"
             className="w-full"
-            disabled={pending}
+            disabled={pending || !canPunch}
             onClick={() => punch("check-in")}
           >
             {pending ? "Checking in…" : "CHECK IN"}
@@ -219,10 +276,10 @@ export function AttendanceCard({ employee, today, office }: Props) {
             size="lg"
             variant="secondary"
             className="w-full border border-slate-300"
-            disabled={pending}
-            onClick={() => punch("check-out")}
+            disabled={pending || !canPunch}
+            onClick={requestCheckOut}
           >
-            {pending ? "Checking out…" : "CHECK OUT"}
+            CHECK OUT
           </Button>
         )}
         {checkedIn && checkedOut && (
@@ -234,6 +291,33 @@ export function AttendanceCard({ employee, today, office }: Props) {
           Refresh location
         </Button>
       </div>
+
+      <ConfirmDialog
+        open={checkoutDialog === "early"}
+        tone="warning"
+        pending={pending}
+        title="Leaving before shift end?"
+        description={
+          shift
+            ? `Your shift ends at ${formatShiftClock(shift.end_time)}. About ${Math.max(minutesLeft, 0)} minute(s) remain. Early check-out will be recorded. Office Wi‑Fi and GPS will be verified again.`
+            : "You are checking out early. Continue only if you mean to leave."
+        }
+        confirmLabel="Yes, check out early"
+        cancelLabel="Stay clocked in"
+        onCancel={() => setCheckoutDialog(null)}
+        onConfirm={() => punch("check-out")}
+      />
+
+      <ConfirmDialog
+        open={checkoutDialog === "normal"}
+        pending={pending}
+        title="Confirm check-out"
+        description="Are you sure you want to check out for today? This cannot be undone by you. Office Wi‑Fi and GPS will be verified on the server."
+        confirmLabel="Yes, check out"
+        cancelLabel="Cancel"
+        onCancel={() => setCheckoutDialog(null)}
+        onConfirm={() => punch("check-out")}
+      />
     </Card>
   );
 }
@@ -250,7 +334,11 @@ function StatusRow({
   return (
     <div className="flex items-center justify-between gap-2">
       <span className="text-slate-500">{label}</span>
-      <span className={ok ? "font-medium text-teal-700" : "font-medium text-amber-700"}>
+      <span
+        className={
+          ok ? "font-medium text-teal-700" : "font-medium text-amber-700"
+        }
+      >
         {ok ? "✓ " : ""}
         {text}
       </span>

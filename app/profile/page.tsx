@@ -1,7 +1,9 @@
 import { redirect } from "next/navigation";
+import Link from "next/link";
 import { getCurrentEmployee } from "@/lib/auth/session";
 import { AppNav } from "@/components/nav";
 import { Card } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 
 export default async function ProfilePage() {
   const employee = await getCurrentEmployee();
@@ -30,6 +32,20 @@ export default async function ProfilePage() {
           />
           <Field label="Status" value={employee.status} />
         </Card>
+
+        <Card className="space-y-3">
+          <h2 className="font-semibold text-slate-900">Security</h2>
+          <p className="text-sm text-slate-500">
+            Change your password anytime. If you forgot it, ask an admin to
+            reset a temporary password, then change it here after login.
+          </p>
+          <Link href="/change-password">
+            <Button type="button" className="w-full sm:w-auto">
+              Change password
+            </Button>
+          </Link>
+        </Card>
+
         <p className="text-xs text-slate-500">
           Profile details can only be updated by an administrator.
         </p>

@@ -2,11 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentEmployee } from "@/lib/auth/session";
 import { apiError } from "@/lib/attendance/errors";
-import { getTodayInTimezone } from "@/lib/attendance/timezone";
+import { getTodayInTimezone, isLate } from "@/lib/attendance/timezone";
 import { validateAttendanceLocation } from "@/lib/attendance/validate";
 import { getRequestIp } from "@/lib/network/ip";
 import { gpsSchema } from "@/validations";
-import type { OfficeSettings } from "@/types";
+import type { OfficeSettings, Shift } from "@/types";
 
 export async function POST(request: NextRequest) {
   try {
@@ -30,6 +30,7 @@ export async function POST(request: NextRequest) {
     const today = getTodayInTimezone(settings.timezone);
     const requestIp = getRequestIp(request);
 
+    // Same Wi‑Fi (public IP) + GPS validation as check-out
     const validation = validateAttendanceLocation(
       parsed.data,
       settings,
@@ -56,6 +57,16 @@ export async function POST(request: NextRequest) {
     }
 
     const now = new Date().toISOString();
+    const shift = employee.shifts as Shift | null | undefined;
+    const late = shift
+      ? isLate(
+          now,
+          shift.start_time,
+          shift.grace_minutes ?? 15,
+          settings.timezone
+        )
+      : false;
+
     const payload = {
       employee_id: employee.id,
       attendance_date: today,
@@ -65,6 +76,7 @@ export async function POST(request: NextRequest) {
       check_in_accuracy: parsed.data.accuracy,
       check_in_distance_meters: validation.distanceMeters,
       check_in_ip: requestIp,
+      is_late: late,
       status: "OPEN",
     };
 
@@ -92,9 +104,14 @@ export async function POST(request: NextRequest) {
     }
 
     return NextResponse.json({
-      message: `Check-in successful. Distance: ${validation.distanceMeters} meters.`,
+      message: late
+        ? `Checked in late. Distance: ${validation.distanceMeters}m.`
+        : `Check-in successful. Distance: ${validation.distanceMeters} meters.`,
       attendance,
       distanceMeters: validation.distanceMeters,
+      isLate: late,
+      networkOk: true,
+      locationOk: true,
     });
   } catch (err) {
     console.error("check-in error", err);

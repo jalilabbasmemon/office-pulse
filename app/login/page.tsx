@@ -50,7 +50,7 @@ export default function LoginPage() {
       }
 
       if (employee.must_change_password) {
-        router.push("/change-password");
+        router.push("/change-password?forced=1");
         router.refresh();
         return;
       }

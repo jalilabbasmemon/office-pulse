@@ -25,6 +25,7 @@ export function EmployeeForm({ shifts, employee }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const [created, setCreated] = useState<CreatedCredentials | null>(null);
+  const [resetResult, setResetResult] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(true);
 
   const [form, setForm] = useState({
@@ -116,6 +117,31 @@ export function EmployeeForm({ shifts, employee }: Props) {
       router.push("/admin/employees");
       router.refresh();
     }
+  }
+
+  async function resetPassword() {
+    if (!employee) return;
+    if (
+      !confirm(
+        "Reset this employee's password? They will get a temporary password and must change it after login."
+      )
+    ) {
+      return;
+    }
+    setError(null);
+    setResetResult(null);
+    startTransition(async () => {
+      const res = await fetch(
+        `/api/admin/employees/${employee.id}/reset-password`,
+        { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" }
+      );
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.message ?? "Password reset failed");
+        return;
+      }
+      setResetResult(data.credentials.temporary_password);
+    });
   }
 
   if (created) {
@@ -273,6 +299,31 @@ export function EmployeeForm({ shifts, employee }: Props) {
             </p>
           </div>
         </>
+      )}
+      {isEdit && (
+        <div className="space-y-3 rounded-xl border border-slate-200 bg-slate-50 p-4">
+          <div>
+            <p className="font-medium text-slate-900">Forgot password?</p>
+            <p className="mt-1 text-xs text-slate-500">
+              Generate a temporary password. Share it with the employee so they
+              can log in and change it under Password.
+            </p>
+          </div>
+          {resetResult && (
+            <p className="rounded-lg bg-teal-50 px-3 py-2 text-sm text-teal-900">
+              Temporary password:{" "}
+              <span className="font-mono font-semibold">{resetResult}</span>
+            </p>
+          )}
+          <Button
+            type="button"
+            variant="outline"
+            disabled={pending}
+            onClick={resetPassword}
+          >
+            {pending ? "Working…" : "Reset password"}
+          </Button>
+        </div>
       )}
       {error && (
         <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">

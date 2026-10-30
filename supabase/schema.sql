@@ -60,6 +60,8 @@ create table if not exists attendance (
   check_out_distance_meters double precision,
   check_out_ip text,
   total_work_minutes integer,
+  is_late boolean not null default false,
+  is_early_leave boolean not null default false,
   status text not null default 'OPEN' check (status in ('OPEN', 'CLOSED', 'ABSENT', 'CORRECTED')),
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),

@@ -5,11 +5,12 @@ import { apiError } from "@/lib/attendance/errors";
 import {
   computeWorkMinutes,
   getTodayInTimezone,
+  isEarlyLeave,
 } from "@/lib/attendance/timezone";
 import { validateAttendanceLocation } from "@/lib/attendance/validate";
 import { getRequestIp } from "@/lib/network/ip";
 import { gpsSchema } from "@/validations";
-import type { OfficeSettings } from "@/types";
+import type { OfficeSettings, Shift } from "@/types";
 
 export async function POST(request: NextRequest) {
   try {
@@ -33,6 +34,7 @@ export async function POST(request: NextRequest) {
     const today = getTodayInTimezone(settings.timezone);
     const requestIp = getRequestIp(request);
 
+    // Same Wi‑Fi (public IP) + GPS validation as check-in
     const validation = validateAttendanceLocation(
       parsed.data,
       settings,
@@ -59,6 +61,10 @@ export async function POST(request: NextRequest) {
 
     const now = new Date().toISOString();
     const total = computeWorkMinutes(existing.check_in_time, now);
+    const shift = employee.shifts as Shift | null | undefined;
+    const early = shift
+      ? isEarlyLeave(now, shift.end_time, settings.timezone)
+      : false;
 
     const { data: attendance, error } = await supabase
       .from("attendance")
@@ -70,6 +76,7 @@ export async function POST(request: NextRequest) {
         check_out_distance_meters: validation.distanceMeters,
         check_out_ip: requestIp,
         total_work_minutes: total,
+        is_early_leave: early,
         status: "CLOSED",
       })
       .eq("id", existing.id)
@@ -81,9 +88,14 @@ export async function POST(request: NextRequest) {
     if (!attendance) return apiError("ALREADY_CHECKED_OUT", 409);
 
     return NextResponse.json({
-      message: `Check-out successful. Worked ${Math.floor(total / 60)}h ${total % 60}m.`,
+      message: early
+        ? `Checked out early. Worked ${Math.floor(total / 60)}h ${total % 60}m.`
+        : `Check-out successful. Worked ${Math.floor(total / 60)}h ${total % 60}m.`,
       attendance,
       distanceMeters: validation.distanceMeters,
+      isEarlyLeave: early,
+      networkOk: true,
+      locationOk: true,
     });
   } catch (err) {
     console.error("check-out error", err);

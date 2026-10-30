@@ -15,6 +15,7 @@ const employeeLinks = [
   { href: "/dashboard", label: "Home" },
   { href: "/attendance", label: "History" },
   { href: "/profile", label: "Profile" },
+  { href: "/change-password", label: "Password" },
 ];
 
 const adminLinks = [
@@ -26,6 +27,7 @@ const adminLinks = [
   { href: "/admin/settings", label: "Settings" },
   { href: "/admin/audit-logs", label: "Audit" },
   { href: "/dashboard", label: "My Punch" },
+  { href: "/change-password", label: "Password" },
 ];
 
 export function AppNav({ role, name }: NavProps) {

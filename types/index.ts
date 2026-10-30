@@ -61,6 +61,8 @@ export type Attendance = {
   check_out_distance_meters: number | null;
   check_out_ip: string | null;
   total_work_minutes: number | null;
+  is_late?: boolean;
+  is_early_leave?: boolean;
   status: AttendanceStatus;
   created_at: string;
   updated_at: string;

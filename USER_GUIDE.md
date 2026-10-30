@@ -200,7 +200,23 @@ Example Morning shift `09:00–18:00`, grace `15`:
 
 ---
 
-## 6. Device & network tips
+## 6. Install as an app (recommended)
+
+OfficePulse can be installed like an app:
+
+### Android / Chrome / Edge (phone or desktop)
+1. Open the site in Chrome or Edge  
+2. When the **Install OfficePulse** banner appears, tap **Install app**  
+3. Or use the browser menu → **Install app** / **Cast, save, and share → Install page as app**
+
+### iPhone / iPad (Safari)
+1. Open the site in Safari  
+2. Tap **Share** → **Add to Home Screen**  
+3. Confirm **Add**
+
+After install, open OfficePulse from the home screen / desktop shortcut for faster punch.
+
+## 7. Device & network tips
 
 | Do | Don’t |
 |----|--------|

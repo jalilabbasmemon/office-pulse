@@ -51,8 +51,11 @@ export function getSupabasePublishableKey() {
  * Prefer new Secret key (`sb_secret_...`); legacy `service_role` JWT also works.
  */
 export function getSupabaseSecretKey() {
-  const key =
-    process.env.SUPABASE_SECRET_KEY ?? process.env.SUPABASE_SERVICE_ROLE_KEY;
+  let key = (
+    process.env.SUPABASE_SECRET_KEY ??
+    process.env.SUPABASE_SERVICE_ROLE_KEY ??
+    ""
+  ).trim();
   if (!key) {
     throw new Error(
       "Missing SUPABASE_SECRET_KEY (or SUPABASE_SERVICE_ROLE_KEY)"
@@ -60,10 +63,17 @@ export function getSupabaseSecretKey() {
   }
   // Guard against users pasting "NAME=value" into the secret field
   if (key.startsWith("SUPABASE_SECRET_KEY=")) {
-    return key.slice("SUPABASE_SECRET_KEY=".length);
+    key = key.slice("SUPABASE_SECRET_KEY=".length).trim();
   }
   if (key.startsWith("SUPABASE_SERVICE_ROLE_KEY=")) {
-    return key.slice("SUPABASE_SERVICE_ROLE_KEY=".length);
+    key = key.slice("SUPABASE_SERVICE_ROLE_KEY=".length).trim();
+  }
+  // Strip accidental quotes from dashboard paste
+  if (
+    (key.startsWith('"') && key.endsWith('"')) ||
+    (key.startsWith("'") && key.endsWith("'"))
+  ) {
+    key = key.slice(1, -1).trim();
   }
   return key;
 }

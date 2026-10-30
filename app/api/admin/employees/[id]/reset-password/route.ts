@@ -24,42 +24,89 @@ export async function POST(request: NextRequest, context: Ctx) {
     }
 
     const supabase = await createClient();
-    const { data: employee } = await supabase
+    const { data: employee, error: loadError } = await supabase
       .from("employees")
       .select("id, auth_user_id, employee_id, name, status")
       .eq("id", id)
       .maybeSingle();
 
+    if (loadError) {
+      return apiError("SERVER_ERROR", 500, loadError.message);
+    }
     if (!employee) {
       return apiError("VALIDATION_ERROR", 404, "Employee not found");
+    }
+    if (!employee.auth_user_id) {
+      return apiError(
+        "VALIDATION_ERROR",
+        400,
+        "Employee has no linked login account."
+      );
     }
 
     const temporaryPassword =
       parsed.data.password?.trim() || generateTempPassword();
 
-    const service = createServiceClient();
+    let service;
+    try {
+      service = createServiceClient();
+    } catch (envErr) {
+      const msg = envErr instanceof Error ? envErr.message : "Config error";
+      return apiError(
+        "SERVER_ERROR",
+        500,
+        `${msg}. Set SUPABASE_SECRET_KEY (service_role JWT) as a Cloudflare Secret, then redeploy.`
+      );
+    }
+
     const { error: authError } = await service.auth.admin.updateUserById(
       employee.auth_user_id,
       { password: temporaryPassword }
     );
     if (authError) {
-      return apiError("VALIDATION_ERROR", 400, authError.message);
+      return apiError(
+        "VALIDATION_ERROR",
+        400,
+        `Could not reset login password: ${authError.message}`
+      );
     }
 
-    await service
+    const { error: flagError } = await service
       .from("employees")
       .update({ must_change_password: true })
       .eq("id", employee.id);
 
-    await writeAuditLog({
-      adminId: admin.id,
-      action: "EMPLOYEE_PASSWORD_RESET",
-      entityType: "employees",
-      entityId: employee.id,
-      newData: { employee_id: employee.employee_id, must_change_password: true },
-      reason: "Admin reset password",
-      ipAddress: getRequestIp(request),
-    });
+    if (flagError) {
+      // Password was already reset; warn but still return the temp password
+      console.error("must_change_password update failed", flagError);
+      return NextResponse.json({
+        message:
+          "Temporary password set, but could not flag must_change_password. Run migration_must_change_password.sql in Supabase. Share the temp password anyway.",
+        warning: flagError.message,
+        credentials: {
+          employee_id: employee.employee_id,
+          name: employee.name,
+          temporary_password: temporaryPassword,
+        },
+      });
+    }
+
+    try {
+      await writeAuditLog({
+        adminId: admin.id,
+        action: "EMPLOYEE_PASSWORD_RESET",
+        entityType: "employees",
+        entityId: employee.id,
+        newData: {
+          employee_id: employee.employee_id,
+          must_change_password: true,
+        },
+        reason: "Admin reset password",
+        ipAddress: getRequestIp(request),
+      });
+    } catch (auditErr) {
+      console.error("audit log failed", auditErr);
+    }
 
     return NextResponse.json({
       message:
@@ -74,7 +121,11 @@ export async function POST(request: NextRequest, context: Ctx) {
     const message = err instanceof Error ? err.message : "";
     if (message === "UNAUTHORIZED") return apiError("UNAUTHORIZED", 401);
     if (message === "FORBIDDEN") return apiError("FORBIDDEN", 403);
-    console.error(err);
-    return apiError("SERVER_ERROR", 500);
+    console.error("reset-password error", err);
+    return apiError(
+      "SERVER_ERROR",
+      500,
+      message || "Password reset failed. Check Cloudflare SUPABASE_SECRET_KEY."
+    );
   }
 }

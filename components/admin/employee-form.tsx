@@ -133,11 +133,19 @@ export function EmployeeForm({ shifts, employee }: Props) {
     startTransition(async () => {
       const res = await fetch(
         `/api/admin/employees/${employee.id}/reset-password`,
-        { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" }
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({}),
+        }
       );
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        setError(data.message ?? "Password reset failed");
+        setError(data.message ?? `Password reset failed (${res.status})`);
+        return;
+      }
+      if (!data.credentials?.temporary_password) {
+        setError(data.message ?? "Reset succeeded but no password returned");
         return;
       }
       setResetResult(data.credentials.temporary_password);

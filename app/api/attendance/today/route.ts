@@ -5,6 +5,8 @@ import { apiError } from "@/lib/attendance/errors";
 import { getTodayInTimezone } from "@/lib/attendance/timezone";
 import type { OfficeSettings } from "@/types";
 
+export const dynamic = "force-dynamic";
+
 export async function GET() {
   try {
     const employee = await getCurrentEmployee();
@@ -27,7 +29,14 @@ export async function GET() {
       .eq("attendance_date", today)
       .maybeSingle();
 
-    return NextResponse.json({ attendance, office, employee, today });
+    return NextResponse.json(
+      { attendance, office, employee, today },
+      {
+        headers: {
+          "Cache-Control": "no-store, no-cache, must-revalidate",
+        },
+      }
+    );
   } catch (err) {
     console.error("today error", err);
     return apiError("SERVER_ERROR", 500);

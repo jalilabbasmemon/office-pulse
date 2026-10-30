@@ -21,7 +21,7 @@ const MESSAGES: Record<ApiErrorCode, string> = {
   ATTENDANCE_NOT_FOUND: "Attendance record not found.",
   INVALID_ATTENDANCE_STATE: "This attendance action is not allowed right now.",
   OFFICE_NOT_CONFIGURED:
-    "Office settings are not configured. Please ask an admin to set them up.",
+    "Office public IP is not configured. Ask an admin to set Office public IP in Settings.",
   VALIDATION_ERROR: "Invalid request data.",
   SERVER_ERROR: "Something went wrong. Please try again.",
 };

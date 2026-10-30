@@ -1,16 +1,24 @@
 import type { GpsPayload, OfficeSettings } from "@/types";
 import type { ApiErrorCode } from "@/types";
 import { calculateDistanceMeters } from "@/lib/location/haversine";
-import { isOfficeNetwork } from "@/lib/network/ip";
+import {
+  getAllowedOfficeIps,
+  hasOfficeIpConfigured,
+  isOfficeNetwork,
+  normalizeIp,
+} from "@/lib/network/ip";
 
 export type ValidationSuccess = {
   ok: true;
   distanceMeters: number;
+  requestIp: string;
 };
 
 export type ValidationFailure = {
   ok: false;
   code: ApiErrorCode;
+  requestIp: string;
+  allowedIps?: string[];
 };
 
 export function validateAttendanceLocation(
@@ -18,8 +26,33 @@ export function validateAttendanceLocation(
   office: OfficeSettings,
   requestIp: string
 ): ValidationSuccess | ValidationFailure {
-  if (!isOfficeNetwork(requestIp, office.office_public_ip, office.allowed_office_ips)) {
-    return { ok: false, code: "OFFICE_NETWORK_REQUIRED" };
+  const normalizedRequestIp = normalizeIp(requestIp);
+
+  if (!hasOfficeIpConfigured(office.office_public_ip, office.allowed_office_ips)) {
+    return {
+      ok: false,
+      code: "OFFICE_NOT_CONFIGURED",
+      requestIp: normalizedRequestIp,
+      allowedIps: [],
+    };
+  }
+
+  if (
+    !isOfficeNetwork(
+      normalizedRequestIp,
+      office.office_public_ip,
+      office.allowed_office_ips
+    )
+  ) {
+    return {
+      ok: false,
+      code: "OFFICE_NETWORK_REQUIRED",
+      requestIp: normalizedRequestIp,
+      allowedIps: getAllowedOfficeIps(
+        office.office_public_ip,
+        office.allowed_office_ips
+      ),
+    };
   }
 
   if (
@@ -29,7 +62,7 @@ export function validateAttendanceLocation(
     Number.isNaN(gps.latitude) ||
     Number.isNaN(gps.longitude)
   ) {
-    return { ok: false, code: "GPS_REQUIRED" };
+    return { ok: false, code: "GPS_REQUIRED", requestIp: normalizedRequestIp };
   }
 
   if (
@@ -37,7 +70,11 @@ export function validateAttendanceLocation(
     Number.isNaN(gps.accuracy) ||
     gps.accuracy > office.max_gps_accuracy_meters
   ) {
-    return { ok: false, code: "GPS_ACCURACY_TOO_LOW" };
+    return {
+      ok: false,
+      code: "GPS_ACCURACY_TOO_LOW",
+      requestIp: normalizedRequestIp,
+    };
   }
 
   const distanceMeters = calculateDistanceMeters(
@@ -48,8 +85,16 @@ export function validateAttendanceLocation(
   );
 
   if (distanceMeters > office.allowed_radius_meters) {
-    return { ok: false, code: "OUTSIDE_OFFICE" };
+    return {
+      ok: false,
+      code: "OUTSIDE_OFFICE",
+      requestIp: normalizedRequestIp,
+    };
   }
 
-  return { ok: true, distanceMeters };
+  return {
+    ok: true,
+    distanceMeters,
+    requestIp: normalizedRequestIp,
+  };
 }

@@ -46,7 +46,18 @@ export async function POST(request: NextRequest) {
         validation.code === "OUTSIDE_OFFICE"
           ? 403
           : 400;
-      return apiError(validation.code, status);
+      const { networkValidationMessage } = await import(
+        "@/lib/attendance/network-error"
+      );
+      return apiError(
+        validation.code,
+        status,
+        networkValidationMessage(
+          validation.code,
+          validation.requestIp,
+          validation.allowedIps
+        )
+      );
     }
 
     const { data: existing } = await supabase
@@ -74,7 +85,7 @@ export async function POST(request: NextRequest) {
         check_out_longitude: parsed.data.longitude,
         check_out_accuracy: parsed.data.accuracy,
         check_out_distance_meters: validation.distanceMeters,
-        check_out_ip: requestIp,
+        check_out_ip: validation.requestIp,
         total_work_minutes: total,
         is_early_leave: early,
         status: "CLOSED",

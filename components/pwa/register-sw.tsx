@@ -8,13 +8,17 @@ export function RegisterServiceWorker() {
 
     const register = async () => {
       try {
-        await navigator.serviceWorker.register("/sw.js", { scope: "/" });
+        const reg = await navigator.serviceWorker.register("/sw.js", {
+          scope: "/",
+          updateViaCache: "none",
+        });
+        // Force check for new SW so stale HTML caches are dropped
+        await reg.update();
       } catch (err) {
         console.warn("Service worker registration failed", err);
       }
     };
 
-    // Avoid competing with first paint / hydration
     if (document.readyState === "complete") register();
     else window.addEventListener("load", register, { once: true });
   }, []);

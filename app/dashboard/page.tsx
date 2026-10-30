@@ -7,6 +7,8 @@ import { AppNav } from "@/components/nav";
 import { AttendanceCard } from "@/components/attendance/attendance-card";
 import type { OfficeSettings } from "@/types";
 
+export const dynamic = "force-dynamic";
+
 export default async function DashboardPage() {
   const employee = await getCurrentEmployee();
   if (!employee) redirect("/login");

@@ -25,10 +25,34 @@ type GpsState = {
   accuracy: number;
 } | null;
 
-export function AttendanceCard({ employee, today, office }: Props) {
+type NetworkState = {
+  ip: string;
+  officeIps: string[];
+  matched: boolean;
+} | null;
+
+function haversineMeters(
+  lat1: number,
+  lon1: number,
+  lat2: number,
+  lon2: number
+) {
+  const R = 6371000;
+  const toRad = (d: number) => (d * Math.PI) / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLon = toRad(lon2 - lon1);
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
+  return Math.round(R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)));
+}
+
+export function AttendanceCard({ employee, today, office: officeProp }: Props) {
+  const [office, setOffice] = useState<OfficeSettings | null>(officeProp);
   const [gps, setGps] = useState<GpsState>(null);
   const [gpsError, setGpsError] = useState<string | null>(null);
   const [distance, setDistance] = useState<number | null>(null);
+  const [network, setNetwork] = useState<NetworkState>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
@@ -50,12 +74,44 @@ export function AttendanceCard({ employee, today, office }: Props) {
     office != null &&
     gps != null &&
     gps.accuracy <= office.max_gps_accuracy_meters;
-  const canPunch = Boolean(gps && locationOk && accuracyOk);
+  const networkOk = Boolean(network?.matched);
+  const canPunch = Boolean(gps && locationOk && accuracyOk && networkOk);
 
   const earlyNow = useMemo(() => {
     if (!shift) return false;
     return isEarlyLeave(new Date().toISOString(), shift.end_time, timezone);
   }, [shift, timezone, checkoutDialog]);
+
+  const refreshNetwork = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/network/my-ip?ts=${Date.now()}`, {
+        cache: "no-store",
+      });
+      if (!res.ok) return;
+      const data = await res.json();
+      setNetwork({
+        ip: data.ip ?? "",
+        officeIps: data.officeIps ?? [],
+        matched: Boolean(data.matched),
+      });
+    } catch {
+      // ignore transient errors; server still validates on punch
+    }
+  }, []);
+
+  const refreshOffice = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/attendance/today?ts=${Date.now()}`, {
+        cache: "no-store",
+      });
+      if (!res.ok) return;
+      const data = await res.json();
+      if (data.office) setOffice(data.office as OfficeSettings);
+      if (data.attendance) setLocalToday(data.attendance);
+    } catch {
+      // ignore
+    }
+  }, []);
 
   const refreshGps = useCallback(() => {
     if (!navigator.geolocation) {
@@ -71,21 +127,19 @@ export function AttendanceCard({ employee, today, office }: Props) {
           accuracy: pos.coords.accuracy,
         };
         setGps(next);
-        if (office) {
-          const R = 6371000;
-          const toRad = (d: number) => (d * Math.PI) / 180;
-          const dLat = toRad(office.latitude - next.latitude);
-          const dLon = toRad(office.longitude - next.longitude);
-          const a =
-            Math.sin(dLat / 2) ** 2 +
-            Math.cos(toRad(next.latitude)) *
-              Math.cos(toRad(office.latitude)) *
-              Math.sin(dLon / 2) ** 2;
-          const meters = Math.round(
-            R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
-          );
-          setDistance(meters);
-        }
+        setOffice((current) => {
+          if (current) {
+            setDistance(
+              haversineMeters(
+                next.latitude,
+                next.longitude,
+                current.latitude,
+                current.longitude
+              )
+            );
+          }
+          return current;
+        });
       },
       () => {
         setGpsError(
@@ -94,11 +148,34 @@ export function AttendanceCard({ employee, today, office }: Props) {
       },
       { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
     );
-  }, [office]);
+  }, []);
+
+  const refreshAll = useCallback(async () => {
+    await Promise.all([refreshOffice(), refreshNetwork()]);
+    refreshGps();
+  }, [refreshOffice, refreshNetwork, refreshGps]);
 
   useEffect(() => {
-    refreshGps();
-  }, [refreshGps]);
+    void refreshAll();
+    const id = window.setInterval(() => {
+      void refreshNetwork();
+      void refreshOffice();
+    }, 15000);
+    return () => window.clearInterval(id);
+  }, [refreshAll, refreshNetwork, refreshOffice]);
+
+  useEffect(() => {
+    if (office && gps) {
+      setDistance(
+        haversineMeters(
+          gps.latitude,
+          gps.longitude,
+          office.latitude,
+          office.longitude
+        )
+      );
+    }
+  }, [office, gps]);
 
   function requireReadyForPunch(): boolean {
     setError(null);
@@ -113,15 +190,22 @@ export function AttendanceCard({ employee, today, office }: Props) {
       setError("Office settings are not configured.");
       return false;
     }
+    if (!networkOk) {
+      setError(
+        `Office Wi‑Fi not detected. Your IP: ${network?.ip || "unknown"}. Office allows: ${(network?.officeIps ?? []).join(", ") || "not set"}.`
+      );
+      void refreshNetwork();
+      return false;
+    }
     if (!accuracyOk) {
       setError(
-        `GPS accuracy is too low (${Math.round(gps.accuracy)}m). Move to an open area or use a phone.`
+        `GPS accuracy is too low (${Math.round(gps.accuracy)}m / max ${office.max_gps_accuracy_meters}m). Move to an open area or use a phone.`
       );
       return false;
     }
     if (!locationOk) {
       setError(
-        `You appear outside the office (${distance}m away). Connect to office Wi‑Fi and stand inside the office.`
+        `You appear outside the office (${distance}m away). Stand inside the office radius.`
       );
       return false;
     }
@@ -129,18 +213,24 @@ export function AttendanceCard({ employee, today, office }: Props) {
   }
 
   function punch(action: "check-in" | "check-out") {
-    if (!requireReadyForPunch() || !gps) return;
-
     startTransition(async () => {
+      await Promise.all([refreshOffice(), refreshNetwork()]);
+      if (!requireReadyForPunch() || !gps) {
+        setCheckoutDialog(null);
+        return;
+      }
+
       const res = await fetch(`/api/attendance/${action}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        cache: "no-store",
         body: JSON.stringify(gps),
       });
       const data = await res.json();
       if (!res.ok) {
         setError(data.message ?? "Unable to complete attendance.");
         setCheckoutDialog(null);
+        void refreshNetwork();
         return;
       }
       setLocalToday(data.attendance);
@@ -151,8 +241,11 @@ export function AttendanceCard({ employee, today, office }: Props) {
   }
 
   function requestCheckOut() {
-    if (!requireReadyForPunch()) return;
-    setCheckoutDialog(earlyNow ? "early" : "normal");
+    startTransition(async () => {
+      await Promise.all([refreshOffice(), refreshNetwork()]);
+      if (!requireReadyForPunch()) return;
+      setCheckoutDialog(earlyNow ? "early" : "normal");
+    });
   }
 
   const minutesLeft =
@@ -227,9 +320,7 @@ export function AttendanceCard({ employee, today, office }: Props) {
           ok={Boolean(accuracyOk)}
           text={
             gps
-              ? `${Math.round(gps.accuracy)}m${
-                  office ? ` / max ${office.max_gps_accuracy_meters}m` : ""
-                }`
+              ? `${Math.round(gps.accuracy)}m / max ${office?.max_gps_accuracy_meters ?? "—"}m`
               : gpsError
                 ? "Unavailable"
                 : "Checking…"
@@ -237,15 +328,29 @@ export function AttendanceCard({ employee, today, office }: Props) {
         />
         <StatusRow
           label="Network"
-          ok={true}
-          text="Office Wi‑Fi IP verified on server at punch"
+          ok={networkOk}
+          text={
+            !network
+              ? "Checking…"
+              : networkOk
+                ? `Office · ${network.ip}`
+                : `Blocked · ${network.ip || "unknown"}`
+          }
         />
+        {network && !networkOk && (
+          <p className="text-xs text-amber-700">
+            Office allows:{" "}
+            {network.officeIps.length > 0
+              ? network.officeIps.join(", ")
+              : "not configured"}
+          </p>
+        )}
       </div>
 
       {!canPunch && !gpsError && (
         <p className="rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-800">
-          Check-in and check-out both require office Wi‑Fi (public IP) and GPS
-          inside the office radius. Fix location/accuracy before punching.
+          Punch requires matching office public IP and GPS inside the radius.
+          Tap Refresh if you just changed Wi‑Fi or Settings.
         </p>
       )}
 
@@ -287,8 +392,13 @@ export function AttendanceCard({ employee, today, office }: Props) {
             Attendance complete for today
           </p>
         )}
-        <Button variant="ghost" size="sm" onClick={refreshGps} disabled={pending}>
-          Refresh location
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => void refreshAll()}
+          disabled={pending}
+        >
+          Refresh location & network
         </Button>
       </div>
 

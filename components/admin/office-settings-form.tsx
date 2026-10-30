@@ -24,7 +24,7 @@ export function OfficeSettingsForm({ settings }: { settings: OfficeSettings | nu
   });
 
   useEffect(() => {
-    fetch("/api/network/my-ip")
+    fetch(`/api/network/my-ip?ts=${Date.now()}`, { cache: "no-store" })
       .then((r) => r.json())
       .then((d) => {
         if (d.ip) setDetectedIp(d.ip);

@@ -93,6 +93,10 @@ Every **check-in** and **check-out** uses the **same** server checks (the phone 
 
 Browsers **cannot** read Wi‑Fi name (SSID). The app uses the office **public IP**. Staff must use office Wi‑Fi so their phone shares that IP.
 
+On **Home**, the **Network** row shows **Your IP** vs **Office allows**. Punch is blocked when they do not match. After changing Wi‑Fi, wait a few seconds or tap **Refresh location** — settings and IP refresh automatically (no hard refresh needed after this update).
+
+**Same public IP on two Wi‑Fi networks:** Some ISPs (especially home/mobile) share one public IP across neighbors (CGNAT). If home Wi‑Fi and neighbor Wi‑Fi show the **same** public IP in Network, the app cannot tell them apart. Use a unique office internet connection, or add only that office’s true public IP in Settings.
+
 ---
 
 ## 3. Employee guide

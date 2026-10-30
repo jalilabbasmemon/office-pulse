@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { BrandLogo } from "@/components/brand-logo";
 
 type NavProps = {
   role: "ADMIN" | "EMPLOYEE";
@@ -46,10 +47,8 @@ export function AppNav({ role, name }: NavProps) {
     <header className="sticky top-0 z-40 border-b border-slate-200 bg-white/95 backdrop-blur">
       <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-3">
         <div>
-          <p className="text-sm font-bold tracking-tight text-teal-800">
-            OfficePulse
-          </p>
-          <p className="text-xs text-slate-500">{name}</p>
+          <BrandLogo markClassName="h-8 w-8" />
+          <p className="mt-0.5 text-xs text-slate-500">{name}</p>
         </div>
         <Button variant="ghost" size="sm" onClick={logout}>
           Logout

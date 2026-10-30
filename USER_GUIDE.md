@@ -229,7 +229,7 @@ If GPS accuracy shows thousands of meters, you are likely on a PC — use a phon
 
 ---
 
-## 7. Common errors
+## 8. Common errors
 
 | Message | What to do |
 |---------|------------|
@@ -242,7 +242,7 @@ If GPS accuracy shows thousands of meters, you are likely on a PC — use a phon
 
 ---
 
-## 8. Security notes
+## 9. Security notes
 
 - Never share the Supabase **secret / service_role** key  
 - Employees change temporary passwords on first login  
@@ -251,7 +251,7 @@ If GPS accuracy shows thousands of meters, you are likely on a PC — use a phon
 
 ---
 
-## 9. Roles summary
+## 10. Roles summary
 
 | | Admin | Employee |
 |--|--------|----------|
@@ -264,7 +264,7 @@ If GPS accuracy shows thousands of meters, you are likely on a PC — use a phon
 
 ---
 
-## 10. Support checklist for admins
+## 11. Support checklist for admins
 
 Before blaming the app, verify:
 

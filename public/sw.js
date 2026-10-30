@@ -1,6 +1,12 @@
 /* OfficePulse minimal service worker — enables install / Add to Home Screen */
 const CACHE = "officepulse-v1";
-const PRECACHE = ["/", "/login", "/icons/icon-192.png", "/icons/icon-512.png"];
+const PRECACHE = [
+  "/",
+  "/login",
+  "/brand/logo.png",
+  "/icons/icon-192.png",
+  "/icons/icon-512.png",
+];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(

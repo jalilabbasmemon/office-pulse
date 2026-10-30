@@ -71,9 +71,17 @@ export function InstallPrompt() {
   return (
     <div className="fixed inset-x-0 bottom-0 z-50 p-3 sm:bottom-4 sm:left-auto sm:right-4 sm:max-w-sm">
       <div className="rounded-2xl border border-teal-200 bg-white p-4 shadow-lg">
-        <p className="text-sm font-semibold text-slate-900">
-          Install OfficePulse
-        </p>
+        <div className="mb-2 flex items-center gap-2">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="/brand/logo.png"
+            alt=""
+            className="h-8 w-8 rounded-full object-cover ring-1 ring-slate-200"
+          />
+          <p className="text-sm font-semibold text-slate-900">
+            Install OfficePulse
+          </p>
+        </div>
         {iosHint ? (
           <p className="mt-1 text-xs leading-relaxed text-slate-600">
             On iPhone/iPad: tap the <strong>Share</strong> button, then{" "}

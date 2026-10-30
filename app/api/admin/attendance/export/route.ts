@@ -3,7 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { requireAdmin } from "@/lib/auth/session";
 import { apiError } from "@/lib/attendance/errors";
 import { buildMonthlyAttendanceWorkbook } from "@/lib/excel/export";
-import type { Attendance, Employee } from "@/types";
+import type { Attendance, Employee, OfficeSettings, Shift } from "@/types";
 
 export async function GET(request: NextRequest) {
   try {
@@ -18,18 +18,27 @@ export async function GET(request: NextRequest) {
     const end = `${year}-${String(mon).padStart(2, "0")}-${endDate}`;
 
     const supabase = await createClient();
-    const { data, error } = await supabase
-      .from("attendance")
-      .select("*, employees(*)")
-      .gte("attendance_date", start)
-      .lte("attendance_date", end)
-      .order("attendance_date");
+    const [{ data, error }, { data: office }] = await Promise.all([
+      supabase
+        .from("attendance")
+        .select("*, employees(*, shifts(*))")
+        .gte("attendance_date", start)
+        .lte("attendance_date", end)
+        .order("attendance_date", { ascending: true }),
+      supabase.from("office_settings").select("timezone").limit(1).maybeSingle(),
+    ]);
 
     if (error) throw error;
 
+    const timezone =
+      (office as OfficeSettings | null)?.timezone ?? "Asia/Karachi";
+
     const buffer = buildMonthlyAttendanceWorkbook(
-      (data ?? []) as (Attendance & { employees?: Employee | null })[],
-      month
+      (data ?? []) as (Attendance & {
+        employees?: (Employee & { shifts?: Shift | null }) | null;
+      })[],
+      month,
+      timezone
     );
 
     return new NextResponse(buffer, {

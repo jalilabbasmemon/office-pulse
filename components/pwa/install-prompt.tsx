@@ -49,8 +49,12 @@ export function InstallPrompt() {
     };
 
     window.addEventListener("beforeinstallprompt", onBeforeInstall);
-    return () =>
+    // Show hint even if Chrome delays beforeinstallprompt (engagement heuristic)
+    const timer = window.setTimeout(() => setVisible(true), 2500);
+    return () => {
+      window.clearTimeout(timer);
       window.removeEventListener("beforeinstallprompt", onBeforeInstall);
+    };
   }, []);
 
   if (!visible) return null;
@@ -87,10 +91,15 @@ export function InstallPrompt() {
             On iPhone/iPad: tap the <strong>Share</strong> button, then{" "}
             <strong>Add to Home Screen</strong> to install this app.
           </p>
+        ) : deferred ? (
+          <p className="mt-1 text-xs leading-relaxed text-slate-600">
+            Add a home screen shortcut for faster check-in and check-out.
+          </p>
         ) : (
           <p className="mt-1 text-xs leading-relaxed text-slate-600">
-            Add a home screen or desktop shortcut for faster check-in and
-            check-out.
+            On Android Chrome: open the menu (⋮) → <strong>Install app</strong>{" "}
+            or <strong>Add to Home screen</strong>. If it says blocked, check
+            Chrome → Site settings → Install apps → Allow.
           </p>
         )}
         <div className="mt-3 flex gap-2">

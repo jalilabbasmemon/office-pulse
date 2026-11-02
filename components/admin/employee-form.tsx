@@ -109,14 +109,68 @@ export function EmployeeForm({ shifts, employee }: Props) {
 
   async function deactivate() {
     if (!employee) return;
-    if (!confirm("Deactivate this employee?")) return;
-    const res = await fetch(`/api/admin/employees/${employee.id}/deactivate`, {
-      method: "POST",
-    });
-    if (res.ok) {
+    if (!confirm("Deactivate this employee? They will not be able to log in."))
+      return;
+    setError(null);
+    startTransition(async () => {
+      const res = await fetch(
+        `/api/admin/employees/${employee.id}/deactivate`,
+        { method: "POST" }
+      );
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setError(data.message ?? "Deactivate failed");
+        return;
+      }
       router.push("/admin/employees");
       router.refresh();
+    });
+  }
+
+  async function activate() {
+    if (!employee) return;
+    if (!confirm("Reactivate this employee so they can log in again?")) return;
+    setError(null);
+    startTransition(async () => {
+      const res = await fetch(`/api/admin/employees/${employee.id}/activate`, {
+        method: "POST",
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setError(data.message ?? "Activate failed");
+        return;
+      }
+      router.push("/admin/employees");
+      router.refresh();
+    });
+  }
+
+  async function deleteEmployee() {
+    if (!employee) return;
+    const ok = confirm(
+      `Permanently delete ${employee.name} (${employee.employee_id})?\n\nThis removes their login and attendance history. This cannot be undone.`
+    );
+    if (!ok) return;
+    const typed = window.prompt(
+      `Type DELETE to confirm deleting ${employee.employee_id}:`
+    );
+    if (typed !== "DELETE") {
+      setError("Delete cancelled — you must type DELETE exactly.");
+      return;
     }
+    setError(null);
+    startTransition(async () => {
+      const res = await fetch(`/api/admin/employees/${employee.id}`, {
+        method: "DELETE",
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setError(data.message ?? "Delete failed");
+        return;
+      }
+      router.push("/admin/employees");
+      router.refresh();
+    });
   }
 
   async function resetPassword() {
@@ -343,11 +397,44 @@ export function EmployeeForm({ shifts, employee }: Props) {
           {pending ? "Saving…" : isEdit ? "Save changes" : "Create employee"}
         </Button>
         {isEdit && employee?.status === "ACTIVE" && (
-          <Button type="button" variant="danger" onClick={deactivate}>
+          <Button
+            type="button"
+            variant="outline"
+            disabled={pending}
+            onClick={deactivate}
+          >
             Deactivate
           </Button>
         )}
+        {isEdit && employee?.status === "INACTIVE" && (
+          <Button
+            type="button"
+            variant="secondary"
+            disabled={pending}
+            onClick={activate}
+          >
+            Activate again
+          </Button>
+        )}
       </div>
+      {isEdit && (
+        <div className="mt-6 rounded-xl border border-red-200 bg-red-50 p-4">
+          <p className="text-sm font-medium text-red-900">Danger zone</p>
+          <p className="mt-1 text-xs text-red-800/80">
+            Permanent delete removes login and attendance records. Prefer
+            Deactivate if you only want to block access.
+          </p>
+          <Button
+            type="button"
+            variant="danger"
+            className="mt-3"
+            disabled={pending}
+            onClick={deleteEmployee}
+          >
+            Delete employee
+          </Button>
+        </div>
+      )}
     </form>
   );
 }

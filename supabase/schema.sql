@@ -177,6 +177,10 @@ create policy "Admins can update employees"
   on employees for update
   using (public.is_admin());
 
+create policy "Admins can delete employees"
+  on employees for delete
+  using (public.is_admin());
+
 -- Shifts
 create policy "Authenticated can read shifts"
   on shifts for select

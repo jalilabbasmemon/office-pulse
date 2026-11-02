@@ -162,7 +162,7 @@ Employees cannot edit attendance, see others’ data, or change office settings.
 | Tab | Purpose |
 |-----|---------|
 | **Dashboard** | Today’s present / absent / working / checked out |
-| **Employees** | Create, edit, deactivate, reset password |
+| **Employees** | Create, edit, activate/deactivate, delete, reset password |
 | **Attendance** | Day view + correct a record |
 | **Reports** | Monthly list + **Export Excel** |
 | **Shifts** | Shift times and grace |
@@ -176,7 +176,9 @@ Employees cannot edit attendance, see others’ data, or change office settings.
 - **Create** — auto ID + temp password  
 - **Edit** — name, mobile, designation, shift, role  
 - **Reset password** — temp password for forgotten logins (requires `SUPABASE_SECRET_KEY` on Cloudflare)  
-- **Deactivate** — blocks login; history kept  
+- **Deactivate** — blocks login; attendance history kept  
+- **Activate again** — restore login for an **INACTIVE** employee (Edit → Activate again)  
+- **Delete employee** — permanent; removes login + attendance (type `DELETE` to confirm). Prefer deactivate when possible. 
 
 ### 4.3 Correct attendance
 
@@ -264,7 +266,7 @@ Desktop GPS often shows thousands of meters accuracy — use a phone for product
 | GPS accuracy too low | Phone, open area, refresh location |
 | Location access required | Allow location for the site |
 | Already checked in / out | One in and one out per day |
-| Account inactive | Ask admin to reactivate |
+| Account inactive | Admin → Employees → Edit → **Activate again** |
 | Missing SUPABASE_SECRET_KEY | Ops: set Cloudflare Secret (see §9); needed for create employee / reset password |
 
 ---

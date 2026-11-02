@@ -31,10 +31,15 @@ export async function updateSession(request: NextRequest) {
   } = await supabase.auth.getUser();
 
   const path = request.nextUrl.pathname;
+  // PWA install needs these without a session (Chrome fetches manifest anonymously).
   const isPublic =
     path === "/login" ||
+    path === "/" ||
+    path === "/manifest.webmanifest" ||
+    path === "/sw.js" ||
     path.startsWith("/api/auth") ||
-    path === "/";
+    path.startsWith("/icons/") ||
+    path.startsWith("/brand/");
 
   if (!user && !isPublic && !path.startsWith("/_next")) {
     const url = request.nextUrl.clone();

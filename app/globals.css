@@ -29,3 +29,14 @@ body {
 * {
   box-sizing: border-box;
 }
+
+/* Keep Leaflet under app chrome / dialogs */
+.leaflet-container {
+  font: inherit;
+  z-index: 0;
+}
+.leaflet-pane,
+.leaflet-top,
+.leaflet-bottom {
+  z-index: auto;
+}

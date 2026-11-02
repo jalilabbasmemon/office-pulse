@@ -49,8 +49,8 @@ Open the production URL (or local). Bootstrap admin (change password after first
 **Settings**:
 
 1. Office name / address  
-2. **Latitude & longitude** — use **Use current location** while standing at the office, or enter manually  
-3. **Allowed radius** — start with `150` m  
+2. **Office on map** — use **Use my GPS** at the office, or tap/drag the pin on the OpenStreetMap preview (no Google key). Confirm the pin is on your building before saving. Coordinates stay under **Show coordinates** if needed.  
+3. **Allowed radius** — start with `150` m (teal circle on the map) 
 4. **Max GPS accuracy** — start with `100` m (phones; desktops often fail)  
 5. **Office public IP** — on office Wi‑Fi tap **Use my current IP** → **Save**  
 

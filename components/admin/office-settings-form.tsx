@@ -1,16 +1,37 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { useEffect, useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import type { OfficeSettings } from "@/types";
 
-export function OfficeSettingsForm({ settings }: { settings: OfficeSettings | null }) {
+const OfficeLocationMap = dynamic(
+  () =>
+    import("@/components/admin/office-location-map").then(
+      (m) => m.OfficeLocationMap
+    ),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="flex h-64 items-center justify-center rounded-xl border border-slate-200 bg-slate-100 text-sm text-slate-500">
+        Loading map…
+      </div>
+    ),
+  }
+);
+
+export function OfficeSettingsForm({
+  settings,
+}: {
+  settings: OfficeSettings | null;
+}) {
   const [pending, startTransition] = useTransition();
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [detectedIp, setDetectedIp] = useState<string | null>(null);
+  const [showCoords, setShowCoords] = useState(false);
   const [form, setForm] = useState({
     office_name: settings?.office_name ?? "Main Office",
     address: settings?.address ?? "",
@@ -41,12 +62,13 @@ export function OfficeSettingsForm({ settings }: { settings: OfficeSettings | nu
       setError("Geolocation is not supported.");
       return;
     }
+    setError(null);
     navigator.geolocation.getCurrentPosition(
       (pos) => {
         update("latitude", Number(pos.coords.latitude.toFixed(6)));
         update("longitude", Number(pos.coords.longitude.toFixed(6)));
         setMessage(
-          `Coordinates filled (GPS accuracy ~${Math.round(pos.coords.accuracy)}m). Confirm you are at the office, then save.`
+          `Pin moved to your GPS (~${Math.round(pos.coords.accuracy)}m accuracy). Check the map, then save.`
         );
       },
       () => setError("Could not read current location."),
@@ -133,33 +155,74 @@ export function OfficeSettingsForm({ settings }: { settings: OfficeSettings | nu
           onChange={(e) => update("address", e.target.value)}
         />
       </div>
-      <div className="grid grid-cols-2 gap-3">
-        <div>
-          <Label htmlFor="latitude">Latitude</Label>
-          <Input
-            id="latitude"
-            type="number"
-            step="any"
-            required
-            value={form.latitude}
-            onChange={(e) => update("latitude", Number(e.target.value))}
-          />
+
+      <div className="space-y-3 rounded-xl border border-slate-200 bg-white p-3">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <p className="text-sm font-medium text-slate-900">Office on map</p>
+            <p className="text-xs text-slate-500">
+              Confirm the pin matches your office building (OpenStreetMap — no
+              Google key).
+            </p>
+          </div>
+          <Button type="button" variant="outline" size="sm" onClick={useCurrentLocation}>
+            Use my GPS
+          </Button>
         </div>
-        <div>
-          <Label htmlFor="longitude">Longitude</Label>
-          <Input
-            id="longitude"
-            type="number"
-            step="any"
-            required
-            value={form.longitude}
-            onChange={(e) => update("longitude", Number(e.target.value))}
-          />
-        </div>
+
+        <OfficeLocationMap
+          latitude={Number(form.latitude)}
+          longitude={Number(form.longitude)}
+          radiusMeters={Number(form.allowed_radius_meters) || 150}
+          onChange={(lat, lng) => {
+            update("latitude", lat);
+            update("longitude", lng);
+            setMessage("Map pin updated. Save settings when ready.");
+          }}
+        />
+
+        <button
+          type="button"
+          className="text-xs font-medium text-teal-700 hover:underline"
+          onClick={() => setShowCoords((v) => !v)}
+        >
+          {showCoords ? "Hide coordinates" : "Show coordinates"}
+        </button>
+        {showCoords && (
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label htmlFor="latitude">Latitude</Label>
+              <Input
+                id="latitude"
+                type="number"
+                step="any"
+                required
+                value={form.latitude}
+                onChange={(e) => update("latitude", Number(e.target.value))}
+              />
+            </div>
+            <div>
+              <Label htmlFor="longitude">Longitude</Label>
+              <Input
+                id="longitude"
+                type="number"
+                step="any"
+                required
+                value={form.longitude}
+                onChange={(e) => update("longitude", Number(e.target.value))}
+              />
+            </div>
+          </div>
+        )}
+        {/* Keep values in the form for submit even when coords UI is hidden */}
+        {!showCoords && (
+          <>
+            <input type="hidden" name="latitude" value={form.latitude} readOnly />
+            <input type="hidden" name="longitude" value={form.longitude} readOnly />
+          </>
+        )}
       </div>
-      <Button type="button" variant="outline" onClick={useCurrentLocation}>
-        Use current location
-      </Button>
+
       <div className="grid grid-cols-2 gap-3">
         <div>
           <Label htmlFor="radius">Allowed radius (m)</Label>
@@ -172,6 +235,9 @@ export function OfficeSettingsForm({ settings }: { settings: OfficeSettings | nu
               update("allowed_radius_meters", Number(e.target.value))
             }
           />
+          <p className="mt-1 text-xs text-slate-500">
+            Shown as the teal circle on the map.
+          </p>
         </div>
         <div>
           <Label htmlFor="accuracy">Max GPS accuracy (m)</Label>

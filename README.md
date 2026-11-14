@@ -1,5 +1,7 @@
 # OfficePulse — Office Attendance System
 
+**Full system design:** see [`ARCHITECTURE.md`](./ARCHITECTURE.md) (stack, data model, punch rules, APIs, PWA, deploy).
+
 Mobile-first attendance for a small office (~10 people). Check-in / check-out is accepted only when:
 
 1. The user is authenticated and active  

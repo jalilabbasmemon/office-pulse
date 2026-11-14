@@ -193,9 +193,13 @@ export function AttendanceCard({
   const refreshGps = useCallback(async () => {
     setGpsError(null);
     setGpsLoading(true);
+    const acceptAccuracy =
+      office?.max_gps_accuracy_meters && office.max_gps_accuracy_meters > 0
+        ? office.max_gps_accuracy_meters
+        : 100;
     try {
       const reading = await acquireLiveGps({
-        acceptAccuracyMeters: 100,
+        acceptAccuracyMeters: acceptAccuracy,
         watchMs: 15000,
         rejectCoarse: false,
         onProgress: (r) => {

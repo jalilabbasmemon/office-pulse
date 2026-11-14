@@ -423,7 +423,20 @@ See `CLOUDFLARE.md` for common misconfiguration (secret paste with `NAME=`, loca
 
 ---
 
-## 15. Design principles
+## 15. Identity gate (session state machine)
+
+Middleware (`lib/supabase/middleware.ts`) is the **central identity gate** after Auth:
+
+1. No user → allow public assets / login; else redirect `/login`
+2. User but missing or **INACTIVE** employee → `signOut` + `/login`
+3. **must_change_password** → only `/change-password` (+ change-password API); pages redirect, other APIs `403`
+4. `/login` or `/` while authed → role home (`adminHomePath`) or forced password change
+
+Punch APIs also reject inactive / forced-password. Deactivate relies on the middleware gate to clear the next request.
+
+Attendance **status**: check-out sets `CLOSED`, but keeps `CORRECTED` if an admin already corrected the day. Admin **correct** recomputes `is_late` / `is_early_leave`.
+
+## 16. Design principles
 
 1. **Server is authoritative** for punch acceptance  
 2. **Public IP ≈ office Wi‑Fi**; GPS ≈ physical presence at a branch  
@@ -431,10 +444,11 @@ See `CLOUDFLARE.md` for common misconfiguration (secret paste with `NAME=`, loca
 4. **PWA must not cache HTML/API** (stale settings bug)  
 5. **Least privilege:** viewers read; only ADMIN writes; service role narrowly used  
 6. **Mobile-first**, with explicit Safari / Private Relay / location UX  
+7. **One identity gate** — session validity is not “has Auth cookie?” alone 
 
 ---
 
-## 16. Related docs
+## 17. Related docs
 
 | Doc | Audience |
 |-----|----------|

@@ -17,6 +17,13 @@ export async function POST(request: NextRequest) {
     const employee = await getCurrentEmployee();
     if (!employee) return apiError("UNAUTHORIZED", 401);
     if (employee.status !== "ACTIVE") return apiError("EMPLOYEE_INACTIVE", 403);
+    if (employee.must_change_password) {
+      return apiError(
+        "FORBIDDEN",
+        403,
+        "You must change your temporary password before continuing."
+      );
+    }
 
     const body = await request.json().catch(() => ({}));
     const parsed = gpsSchema.safeParse(body);
@@ -77,6 +84,10 @@ export async function POST(request: NextRequest) {
       ? isEarlyLeave(now, shift.end_time, settings.timezone)
       : false;
 
+    // Preserve CORRECTED if an admin already edited this day; never wipe that flag.
+    const nextStatus =
+      existing.status === "CORRECTED" ? "CORRECTED" : "CLOSED";
+
     const { data: attendance, error } = await supabase
       .from("attendance")
       .update({
@@ -89,7 +100,7 @@ export async function POST(request: NextRequest) {
         check_out_location_name: validation.locationName,
         total_work_minutes: total,
         is_early_leave: early,
-        status: "CLOSED",
+        status: nextStatus,
       })
       .eq("id", existing.id)
       .is("check_out_time", null)

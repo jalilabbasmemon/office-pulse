@@ -13,6 +13,13 @@ export async function POST(request: NextRequest) {
     const employee = await getCurrentEmployee();
     if (!employee) return apiError("UNAUTHORIZED", 401);
     if (employee.status !== "ACTIVE") return apiError("EMPLOYEE_INACTIVE", 403);
+    if (employee.must_change_password) {
+      return apiError(
+        "FORBIDDEN",
+        403,
+        "You must change your temporary password before continuing."
+      );
+    }
 
     const body = await request.json().catch(() => ({}));
     const parsed = gpsSchema.safeParse(body);

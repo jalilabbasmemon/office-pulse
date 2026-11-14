@@ -34,6 +34,12 @@ export async function requireEmployee(): Promise<Employee> {
   if (!employee) {
     throw new Error("UNAUTHORIZED");
   }
+  if (employee.status !== "ACTIVE") {
+    throw new Error("EMPLOYEE_INACTIVE");
+  }
+  if (employee.must_change_password) {
+    throw new Error("MUST_CHANGE_PASSWORD");
+  }
   return employee;
 }
 
@@ -43,9 +49,6 @@ export async function requireAdmin(): Promise<Employee> {
   if (!canWriteAdmin(employee.role)) {
     throw new Error("FORBIDDEN");
   }
-  if (employee.status !== "ACTIVE") {
-    throw new Error("EMPLOYEE_INACTIVE");
-  }
   return employee;
 }
 
@@ -54,9 +57,6 @@ export async function requireAdminAccess(): Promise<Employee> {
   const employee = await requireEmployee();
   if (!isAdminStaff(employee.role)) {
     throw new Error("FORBIDDEN");
-  }
-  if (employee.status !== "ACTIVE") {
-    throw new Error("EMPLOYEE_INACTIVE");
   }
   return employee;
 }

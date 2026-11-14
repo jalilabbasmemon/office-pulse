@@ -1,5 +1,19 @@
 -- Multiple office / branch locations (GPS geofences).
 -- Punch rules: office Wi‑Fi → GPS optional; other networks → must match a location.
+-- Safe to re-run.
+
+create or replace function public.set_updated_at()
+returns trigger
+language plpgsql
+as $$
+begin
+  new.updated_at = now();
+  return new;
+end;
+$$;
+
+alter table office_settings
+  add column if not exists allow_wifi_only_punch boolean not null default true;
 
 create table if not exists office_locations (
   id uuid primary key default gen_random_uuid(),
@@ -53,5 +67,7 @@ limit 1;
 
 -- Optional labels on attendance for which branch matched
 alter table attendance
-  add column if not exists check_in_location_name text,
+  add column if not exists check_in_location_name text;
+
+alter table attendance
   add column if not exists check_out_location_name text;

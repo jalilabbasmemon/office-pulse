@@ -53,11 +53,12 @@ export async function POST(request: NextRequest) {
     }
 
     const tempPassword = parsed.data.password || generateTempPassword();
+    const loginEmail = parsed.data.email.trim().toLowerCase();
 
     const service = createServiceClient();
     const { data: authData, error: authError } =
       await service.auth.admin.createUser({
-        email: parsed.data.email,
+        email: loginEmail,
         password: tempPassword,
         email_confirm: true,
         user_metadata: {
@@ -114,7 +115,7 @@ export async function POST(request: NextRequest) {
         employee,
         credentials: {
           employee_id: employeeId,
-          email: parsed.data.email,
+          email: loginEmail,
           temporary_password: tempPassword,
         },
       },

@@ -175,7 +175,7 @@ Employees cannot edit attendance, see others’ data, or change office settings.
 
 - **Create** — auto ID + temp password  
 - **Edit** — name, mobile, designation, shift, role  
-- **Reset password** — temp password for forgotten logins (requires `SUPABASE_SECRET_KEY` on Cloudflare)  
+- **Reset password** — shows **login email + temp password** (login uses email, not Employee ID; requires `SUPABASE_SECRET_KEY` on Cloudflare)  
 - **Deactivate** — blocks login; attendance history kept  
 - **Activate again** — restore login for an **INACTIVE** employee (Edit → Activate again)  
 - **Delete employee** — permanent; removes login + attendance (type delete — it auto-capitalizes to `DELETE`). Prefer deactivate when possible. 

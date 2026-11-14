@@ -1,5 +1,5 @@
 import { redirect, notFound } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
+import { createClient, createServiceClient } from "@/lib/supabase/server";
 import { getCurrentEmployee } from "@/lib/auth/session";
 import { AppNav } from "@/components/nav";
 import { Card, CardTitle } from "@/components/ui/card";
@@ -22,6 +22,17 @@ export default async function EditEmployeePage({ params }: Props) {
 
   if (!employee) notFound();
 
+  let loginEmail: string | null = null;
+  try {
+    const service = createServiceClient();
+    const { data } = await service.auth.admin.getUserById(
+      (employee as Employee).auth_user_id
+    );
+    loginEmail = data.user?.email?.trim().toLowerCase() ?? null;
+  } catch {
+    loginEmail = null;
+  }
+
   return (
     <div className="min-h-screen bg-slate-50">
       <AppNav role={current.role} name={current.name} />
@@ -31,6 +42,7 @@ export default async function EditEmployeePage({ params }: Props) {
           <EmployeeForm
             employee={employee as Employee}
             shifts={(shifts as Shift[]) ?? []}
+            loginEmail={loginEmail}
           />
         </Card>
       </main>

@@ -12,6 +12,7 @@ import type { Employee, Shift } from "@/types";
 type Props = {
   shifts: Shift[];
   employee?: Employee;
+  loginEmail?: string | null;
 };
 
 type CreatedCredentials = {
@@ -20,15 +21,22 @@ type CreatedCredentials = {
   temporary_password: string;
 };
 
+type ResetCredentials = {
+  email: string;
+  temporary_password: string;
+};
+
 type DialogKind = "deactivate" | "activate" | "delete" | "reset" | null;
 
-export function EmployeeForm({ shifts, employee }: Props) {
+export function EmployeeForm({ shifts, employee, loginEmail }: Props) {
   const router = useRouter();
   const isEdit = Boolean(employee);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const [created, setCreated] = useState<CreatedCredentials | null>(null);
-  const [resetResult, setResetResult] = useState<string | null>(null);
+  const [resetResult, setResetResult] = useState<ResetCredentials | null>(
+    null
+  );
   const [showPassword, setShowPassword] = useState(true);
   const [dialog, setDialog] = useState<DialogKind>(null);
 
@@ -184,7 +192,13 @@ export function EmployeeForm({ shifts, employee }: Props) {
           setError(data.message ?? "Reset succeeded but no password returned");
           return;
         }
-        setResetResult(data.credentials.temporary_password);
+        setResetResult({
+          email:
+            data.credentials.email ??
+            loginEmail ??
+            "(email missing — check Auth user)",
+          temporary_password: data.credentials.temporary_password,
+        });
       }
     });
   }
@@ -349,17 +363,36 @@ export function EmployeeForm({ shifts, employee }: Props) {
         {isEdit && (
           <div className="space-y-3 rounded-xl border border-slate-200 bg-slate-50 p-4">
             <div>
+              <p className="font-medium text-slate-900">Login email</p>
+              <p className="mt-1 font-mono text-sm font-semibold text-slate-900">
+                {loginEmail ?? "Not found on Auth account"}
+              </p>
+              <p className="mt-1 text-xs text-slate-500">
+                Employees sign in with this email + password (not Employee ID).
+              </p>
+            </div>
+            <div>
               <p className="font-medium text-slate-900">Forgot password?</p>
               <p className="mt-1 text-xs text-slate-500">
-                Generate a temporary password. Share it with the employee so
-                they can log in and change it under Password.
+                Generate a temporary password. Share both the email and password
+                so they can log in and change it under Password.
               </p>
             </div>
             {resetResult && (
-              <p className="rounded-lg bg-teal-50 px-3 py-2 text-sm text-teal-900">
-                Temporary password:{" "}
-                <span className="font-mono font-semibold">{resetResult}</span>
-              </p>
+              <div className="space-y-1 rounded-lg bg-teal-50 px-3 py-2 text-sm text-teal-900">
+                <p>
+                  Email:{" "}
+                  <span className="font-mono font-semibold">
+                    {resetResult.email}
+                  </span>
+                </p>
+                <p>
+                  Temporary password:{" "}
+                  <span className="font-mono font-semibold">
+                    {resetResult.temporary_password}
+                  </span>
+                </p>
+              </div>
             )}
             <Button
               type="button"

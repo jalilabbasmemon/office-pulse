@@ -59,9 +59,32 @@ export async function POST(request: NextRequest, context: Ctx) {
       );
     }
 
+    const { data: authUserData, error: authLookupError } =
+      await service.auth.admin.getUserById(employee.auth_user_id);
+    if (authLookupError || !authUserData.user) {
+      return apiError(
+        "VALIDATION_ERROR",
+        400,
+        authLookupError?.message ??
+          "Linked login account was not found in Auth. Recreate the employee."
+      );
+    }
+
+    const loginEmail = (authUserData.user.email ?? "").trim().toLowerCase();
+    if (!loginEmail) {
+      return apiError(
+        "VALIDATION_ERROR",
+        400,
+        "This employee has no login email on their Auth account."
+      );
+    }
+
     const { error: authError } = await service.auth.admin.updateUserById(
       employee.auth_user_id,
-      { password: temporaryPassword }
+      {
+        password: temporaryPassword,
+        email_confirm: true,
+      }
     );
     if (authError) {
       return apiError(
@@ -81,11 +104,12 @@ export async function POST(request: NextRequest, context: Ctx) {
       console.error("must_change_password update failed", flagError);
       return NextResponse.json({
         message:
-          "Temporary password set, but could not flag must_change_password. Run migration_must_change_password.sql in Supabase. Share the temp password anyway.",
+          "Temporary password set, but could not flag must_change_password. Run migration_must_change_password.sql in Supabase. Share email + temp password anyway.",
         warning: flagError.message,
         credentials: {
           employee_id: employee.employee_id,
           name: employee.name,
+          email: loginEmail,
           temporary_password: temporaryPassword,
         },
       });
@@ -110,10 +134,11 @@ export async function POST(request: NextRequest, context: Ctx) {
 
     return NextResponse.json({
       message:
-        "Temporary password set. Share it with the employee; they must change it after login.",
+        "Temporary password set. Share the login email and password; they must change it after login.",
       credentials: {
         employee_id: employee.employee_id,
         name: employee.name,
+        email: loginEmail,
         temporary_password: temporaryPassword,
       },
     });

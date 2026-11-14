@@ -21,12 +21,17 @@ export default function LoginPage() {
     setError(null);
     startTransition(async () => {
       const supabase = createClient();
+      const loginEmail = email.trim().toLowerCase();
       const { error: authError } = await supabase.auth.signInWithPassword({
-        email,
+        email: loginEmail,
         password,
       });
       if (authError) {
-        setError(authError.message);
+        setError(
+          authError.message === "Invalid login credentials"
+            ? "Invalid email or password. Use the login email (not Employee ID). Ask admin to reset password if needed."
+            : authError.message
+        );
         return;
       }
 

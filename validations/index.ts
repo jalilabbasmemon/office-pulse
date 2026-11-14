@@ -23,7 +23,11 @@ export const employeeCreateSchema = z.object({
   designation: z.string().min(2).max(100),
   shift_id: z.string().uuid().nullable().optional(),
   role: z.enum(["ADMIN", "EMPLOYEE"]).default("EMPLOYEE"),
-  email: z.string().email(),
+  email: z
+    .string()
+    .trim()
+    .email()
+    .transform((v) => v.toLowerCase()),
   password: z
     .string()
     .min(8, "Password must be at least 8 characters")

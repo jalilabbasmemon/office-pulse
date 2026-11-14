@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { requireAdmin } from "@/lib/auth/session";
+import { requireAdmin, requireAdminAccess } from "@/lib/auth/session";
 import { writeAuditLog } from "@/lib/auth/audit";
 import { apiError } from "@/lib/attendance/errors";
 import { getRequestIp } from "@/lib/network/ip";
@@ -8,7 +8,7 @@ import { officeSettingsSchema } from "@/validations";
 
 export async function GET() {
   try {
-    await requireAdmin();
+    await requireAdminAccess();
     const supabase = await createClient();
     const { data, error } = await supabase
       .from("office_settings")

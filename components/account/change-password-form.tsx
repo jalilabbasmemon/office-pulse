@@ -41,7 +41,11 @@ export function ChangePasswordForm() {
       }
 
       if (forced) {
-        router.push(data.role === "ADMIN" ? "/admin/dashboard" : "/dashboard");
+        router.push(
+          data.role === "ADMIN" || data.role === "ADMIN_VIEWER"
+            ? "/admin/dashboard"
+            : "/dashboard"
+        );
         router.refresh();
         return;
       }

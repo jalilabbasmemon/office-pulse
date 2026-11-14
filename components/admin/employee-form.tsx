@@ -13,6 +13,7 @@ type Props = {
   shifts: Shift[];
   employee?: Employee;
   loginEmail?: string | null;
+  readOnly?: boolean;
 };
 
 type CreatedCredentials = {
@@ -28,7 +29,12 @@ type ResetCredentials = {
 
 type DialogKind = "deactivate" | "activate" | "delete" | "reset" | null;
 
-export function EmployeeForm({ shifts, employee, loginEmail }: Props) {
+export function EmployeeForm({
+  shifts,
+  employee,
+  loginEmail,
+  readOnly = false,
+}: Props) {
   const router = useRouter();
   const isEdit = Boolean(employee);
   const [error, setError] = useState<string | null>(null);
@@ -49,7 +55,10 @@ export function EmployeeForm({ shifts, employee, loginEmail }: Props) {
     mobile: employee?.mobile ?? "",
     designation: employee?.designation ?? "",
     shift_id: employee?.shift_id ?? "",
-    role: (employee?.role ?? "EMPLOYEE") as "ADMIN" | "EMPLOYEE",
+    role: (employee?.role ?? "EMPLOYEE") as
+      | "ADMIN"
+      | "ADMIN_VIEWER"
+      | "EMPLOYEE",
     email: "",
     password: isEdit ? "" : generateTempPassword(),
   });
@@ -337,7 +346,22 @@ export function EmployeeForm({ shifts, employee, loginEmail }: Props) {
 
   return (
     <>
-      <form onSubmit={onSubmit} className="space-y-4">
+      {readOnly ? (
+        <p className="mb-3 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-800">
+          View-only account — employee records cannot be changed.
+        </p>
+      ) : null}
+      <form
+        onSubmit={(e) => {
+          if (readOnly) {
+            e.preventDefault();
+            return;
+          }
+          onSubmit(e);
+        }}
+        className="space-y-4"
+      >
+        <fieldset disabled={readOnly} className="space-y-4">
         {!isEdit && (
           <div>
             <Label htmlFor="employee_id">Employee ID (auto)</Label>
@@ -400,11 +424,16 @@ export function EmployeeForm({ shifts, employee, loginEmail }: Props) {
             className="flex h-11 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm"
             value={form.role}
             onChange={(e) =>
-              update("role", e.target.value as "ADMIN" | "EMPLOYEE")
+              update(
+                "role",
+                e.target.value as "ADMIN" | "ADMIN_VIEWER" | "EMPLOYEE"
+              )
             }
+            disabled={readOnly}
           >
             <option value="EMPLOYEE">Employee</option>
             <option value="ADMIN">Admin</option>
+            <option value="ADMIN_VIEWER">Admin Viewer (read-only)</option>
           </select>
         </div>
         {!isEdit && (
@@ -483,54 +512,63 @@ export function EmployeeForm({ shifts, employee, loginEmail }: Props) {
             </Button>
           </div>
         )}
+        </fieldset>
         {error && (
           <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">
             {error}
           </p>
         )}
-        <div className="flex flex-wrap gap-2">
-          <Button type="submit" disabled={pending}>
-            {pending ? "Saving…" : isEdit ? "Save changes" : "Create employee"}
-          </Button>
-          {isEdit && employee?.status === "ACTIVE" && (
-            <Button
-              type="button"
-              variant="outline"
-              disabled={pending}
-              onClick={() => setDialog("deactivate")}
-            >
-              Deactivate
-            </Button>
-          )}
-          {isEdit && employee?.status === "INACTIVE" && (
-            <Button
-              type="button"
-              variant="secondary"
-              disabled={pending}
-              onClick={() => setDialog("activate")}
-            >
-              Activate again
-            </Button>
-          )}
-        </div>
-        {isEdit && (
-          <div className="mt-6 rounded-xl border border-red-200 bg-red-50 p-4">
-            <p className="text-sm font-medium text-red-900">Danger zone</p>
-            <p className="mt-1 text-xs text-red-800/80">
-              Permanent delete removes login and attendance records. Prefer
-              Deactivate if you only want to block access.
-            </p>
-            <Button
-              type="button"
-              variant="danger"
-              className="mt-3"
-              disabled={pending}
-              onClick={() => setDialog("delete")}
-            >
-              Delete employee
-            </Button>
-          </div>
-        )}
+        {!readOnly ? (
+          <>
+            <div className="flex flex-wrap gap-2">
+              <Button type="submit" disabled={pending}>
+                {pending
+                  ? "Saving…"
+                  : isEdit
+                    ? "Save changes"
+                    : "Create employee"}
+              </Button>
+              {isEdit && employee?.status === "ACTIVE" && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={pending}
+                  onClick={() => setDialog("deactivate")}
+                >
+                  Deactivate
+                </Button>
+              )}
+              {isEdit && employee?.status === "INACTIVE" && (
+                <Button
+                  type="button"
+                  variant="secondary"
+                  disabled={pending}
+                  onClick={() => setDialog("activate")}
+                >
+                  Activate again
+                </Button>
+              )}
+            </div>
+            {isEdit && (
+              <div className="mt-6 rounded-xl border border-red-200 bg-red-50 p-4">
+                <p className="text-sm font-medium text-red-900">Danger zone</p>
+                <p className="mt-1 text-xs text-red-800/80">
+                  Permanent delete removes login and attendance records. Prefer
+                  Deactivate if you only want to block access.
+                </p>
+                <Button
+                  type="button"
+                  variant="danger"
+                  className="mt-3"
+                  disabled={pending}
+                  onClick={() => setDialog("delete")}
+                >
+                  Delete employee
+                </Button>
+              </div>
+            )}
+          </>
+        ) : null}
       </form>
 
       <ConfirmDialog

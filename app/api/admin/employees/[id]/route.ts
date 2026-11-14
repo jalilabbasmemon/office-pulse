@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient, createServiceClient } from "@/lib/supabase/server";
-import { requireAdmin } from "@/lib/auth/session";
+import { requireAdmin, requireAdminAccess } from "@/lib/auth/session";
 import { writeAuditLog } from "@/lib/auth/audit";
 import { apiError } from "@/lib/attendance/errors";
 import { getRequestIp } from "@/lib/network/ip";
@@ -10,7 +10,7 @@ type Ctx = { params: Promise<{ id: string }> };
 
 export async function GET(_request: NextRequest, context: Ctx) {
   try {
-    await requireAdmin();
+    await requireAdminAccess();
     const { id } = await context.params;
     const supabase = await createClient();
     const { data: employee, error } = await supabase

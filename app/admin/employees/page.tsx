@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentEmployee } from "@/lib/auth/session";
+import { canWriteAdmin, isAdminStaff } from "@/lib/auth/roles";
 import { AppNav } from "@/components/nav";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -9,8 +10,9 @@ import { Button } from "@/components/ui/button";
 export default async function EmployeesPage() {
   const employee = await getCurrentEmployee();
   if (!employee) redirect("/login");
-  if (employee.role !== "ADMIN") redirect("/dashboard");
+  if (!isAdminStaff(employee.role)) redirect("/dashboard");
 
+  const canWrite = canWriteAdmin(employee.role);
   const supabase = await createClient();
   const { data: employees } = await supabase
     .from("employees")
@@ -23,9 +25,11 @@ export default async function EmployeesPage() {
       <main className="mx-auto max-w-6xl space-y-4 px-4 py-6">
         <div className="flex items-center justify-between gap-3">
           <h1 className="text-2xl font-semibold text-slate-900">Employees</h1>
-          <Link href="/admin/employees/new">
-            <Button>Add employee</Button>
-          </Link>
+          {canWrite ? (
+            <Link href="/admin/employees/new">
+              <Button>Add employee</Button>
+            </Link>
+          ) : null}
         </div>
         <Card className="overflow-hidden p-0">
           <div className="overflow-x-auto">
@@ -50,7 +54,13 @@ export default async function EmployeesPage() {
                     <td className="px-4 py-3 font-medium">{e.name}</td>
                     <td className="px-4 py-3">{e.designation}</td>
                     <td className="px-4 py-3">{e.shifts?.name ?? "--"}</td>
-                    <td className="px-4 py-3">{e.role}</td>
+                    <td className="px-4 py-3">
+                      {e.role === "ADMIN_VIEWER"
+                        ? "Admin Viewer"
+                        : e.role === "ADMIN"
+                          ? "Admin"
+                          : "Employee"}
+                    </td>
                     <td className="px-4 py-3">
                       <span
                         className={
@@ -67,7 +77,7 @@ export default async function EmployeesPage() {
                         href={`/admin/employees/${e.id}`}
                         className="text-teal-700 hover:underline"
                       >
-                        Edit
+                        {canWrite ? "Edit" : "View"}
                       </Link>
                     </td>
                   </tr>

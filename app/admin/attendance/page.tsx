@@ -1,11 +1,13 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentEmployee } from "@/lib/auth/session";
+import { canWriteAdmin, isAdminStaff } from "@/lib/auth/roles";
 import { getTodayInTimezone } from "@/lib/attendance/timezone";
 import { AppNav } from "@/components/nav";
 import { Card } from "@/components/ui/card";
 import { DateFilter } from "@/components/ui/date-filters";
 import { AttendanceCorrectForm } from "@/components/admin/attendance-correct-form";
+import { PunchLocationCell } from "@/components/admin/punch-location-cell";
 import { formatMinutes, formatTime } from "@/lib/utils";
 import type { OfficeSettings } from "@/types";
 
@@ -16,8 +18,9 @@ export default async function AdminAttendancePage({
 }) {
   const employee = await getCurrentEmployee();
   if (!employee) redirect("/login");
-  if (employee.role !== "ADMIN") redirect("/dashboard");
+  if (!isAdminStaff(employee.role)) redirect("/dashboard");
 
+  const canWrite = canWriteAdmin(employee.role);
   const params = await searchParams;
   const supabase = await createClient();
   const { data: office } = await supabase
@@ -33,6 +36,8 @@ export default async function AdminAttendancePage({
     .select("*, employees(name, employee_id)")
     .eq("attendance_date", date)
     .order("check_in_time", { ascending: true });
+
+  const colSpan = canWrite ? 7 : 6;
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -52,14 +57,15 @@ export default async function AdminAttendancePage({
                   <th className="px-4 py-2">Out</th>
                   <th className="px-4 py-2">Hours</th>
                   <th className="px-4 py-2">Status</th>
-                  <th className="px-4 py-2">Actions</th>
+                  <th className="px-4 py-2">Location</th>
+                  {canWrite ? <th className="px-4 py-2">Actions</th> : null}
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {(records ?? []).length === 0 && (
                   <tr>
                     <td
-                      colSpan={6}
+                      colSpan={colSpan}
                       className="px-4 py-8 text-center text-slate-500"
                     >
                       No attendance for this date.
@@ -81,12 +87,28 @@ export default async function AdminAttendancePage({
                     </td>
                     <td className="px-4 py-3">{r.status}</td>
                     <td className="px-4 py-3">
-                      <AttendanceCorrectForm
-                        attendanceId={r.id}
-                        checkIn={r.check_in_time}
-                        checkOut={r.check_out_time}
+                      <PunchLocationCell
+                        checkInLatitude={r.check_in_latitude}
+                        checkInLongitude={r.check_in_longitude}
+                        checkInAccuracy={r.check_in_accuracy}
+                        checkInDistanceMeters={r.check_in_distance_meters}
+                        checkInIp={r.check_in_ip}
+                        checkOutLatitude={r.check_out_latitude}
+                        checkOutLongitude={r.check_out_longitude}
+                        checkOutAccuracy={r.check_out_accuracy}
+                        checkOutDistanceMeters={r.check_out_distance_meters}
+                        checkOutIp={r.check_out_ip}
                       />
                     </td>
+                    {canWrite ? (
+                      <td className="px-4 py-3">
+                        <AttendanceCorrectForm
+                          attendanceId={r.id}
+                          checkIn={r.check_in_time}
+                          checkOut={r.check_out_time}
+                        />
+                      </td>
+                    ) : null}
                   </tr>
                 ))}
               </tbody>

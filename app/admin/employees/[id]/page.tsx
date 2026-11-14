@@ -1,6 +1,7 @@
 import { redirect, notFound } from "next/navigation";
 import { createClient, createServiceClient } from "@/lib/supabase/server";
 import { getCurrentEmployee } from "@/lib/auth/session";
+import { canWriteAdmin, isAdminStaff } from "@/lib/auth/roles";
 import { AppNav } from "@/components/nav";
 import { Card, CardTitle } from "@/components/ui/card";
 import { EmployeeForm } from "@/components/admin/employee-form";
@@ -11,7 +12,8 @@ type Props = { params: Promise<{ id: string }> };
 export default async function EditEmployeePage({ params }: Props) {
   const current = await getCurrentEmployee();
   if (!current) redirect("/login");
-  if (current.role !== "ADMIN") redirect("/dashboard");
+  if (!isAdminStaff(current.role)) redirect("/dashboard");
+  const readOnly = !canWriteAdmin(current.role);
 
   const { id } = await params;
   const supabase = await createClient();
@@ -38,11 +40,14 @@ export default async function EditEmployeePage({ params }: Props) {
       <AppNav role={current.role} name={current.name} />
       <main className="mx-auto max-w-lg space-y-4 px-4 py-6">
         <Card className="space-y-4">
-          <CardTitle>Edit {employee.name}</CardTitle>
+          <CardTitle>
+            {readOnly ? "View" : "Edit"} {employee.name}
+          </CardTitle>
           <EmployeeForm
             employee={employee as Employee}
             shifts={(shifts as Shift[]) ?? []}
             loginEmail={loginEmail}
+            readOnly={readOnly}
           />
         </Card>
       </main>

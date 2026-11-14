@@ -22,7 +22,7 @@ export const employeeCreateSchema = z.object({
   mobile: z.string().min(10).max(15),
   designation: z.string().min(2).max(100),
   shift_id: z.string().uuid().nullable().optional(),
-  role: z.enum(["ADMIN", "EMPLOYEE"]).default("EMPLOYEE"),
+  role: z.enum(["ADMIN", "ADMIN_VIEWER", "EMPLOYEE"]).default("EMPLOYEE"),
   email: z
     .string()
     .trim()
@@ -50,7 +50,7 @@ export const employeeUpdateSchema = z.object({
   mobile: z.string().min(10).max(15).optional(),
   designation: z.string().min(2).max(100).optional(),
   shift_id: z.string().uuid().nullable().optional(),
-  role: z.enum(["ADMIN", "EMPLOYEE"]).optional(),
+  role: z.enum(["ADMIN", "ADMIN_VIEWER", "EMPLOYEE"]).optional(),
   status: z.enum(["ACTIVE", "INACTIVE"]).optional(),
 });
 

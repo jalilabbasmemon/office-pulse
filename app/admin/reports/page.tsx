@@ -1,10 +1,12 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentEmployee } from "@/lib/auth/session";
+import { isAdminStaff } from "@/lib/auth/roles";
 import { AppNav } from "@/components/nav";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { MonthFilter } from "@/components/ui/date-filters";
+import { PunchLocationCell } from "@/components/admin/punch-location-cell";
 import { formatMinutes, formatShortDate, formatTime } from "@/lib/utils";
 
 export default async function ReportsPage({
@@ -14,7 +16,7 @@ export default async function ReportsPage({
 }) {
   const employee = await getCurrentEmployee();
   if (!employee) redirect("/login");
-  if (employee.role !== "ADMIN") redirect("/dashboard");
+  if (!isAdminStaff(employee.role)) redirect("/dashboard");
 
   const params = await searchParams;
   const month = params.month ?? new Date().toISOString().slice(0, 7);
@@ -58,11 +60,12 @@ export default async function ReportsPage({
                   <th className="px-4 py-2">Out</th>
                   <th className="px-4 py-2">Hours</th>
                   <th className="px-4 py-2">Status</th>
+                  <th className="px-4 py-2">Location</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {(records ?? []).map((r) => (
-                  <tr key={r.id}>
+                  <tr key={r.id} className="align-top">
                     <td className="px-4 py-3">
                       {formatShortDate(r.attendance_date)}
                     </td>
@@ -75,6 +78,20 @@ export default async function ReportsPage({
                       {formatMinutes(r.total_work_minutes)}
                     </td>
                     <td className="px-4 py-3">{r.status}</td>
+                    <td className="px-4 py-3">
+                      <PunchLocationCell
+                        checkInLatitude={r.check_in_latitude}
+                        checkInLongitude={r.check_in_longitude}
+                        checkInAccuracy={r.check_in_accuracy}
+                        checkInDistanceMeters={r.check_in_distance_meters}
+                        checkInIp={r.check_in_ip}
+                        checkOutLatitude={r.check_out_latitude}
+                        checkOutLongitude={r.check_out_longitude}
+                        checkOutAccuracy={r.check_out_accuracy}
+                        checkOutDistanceMeters={r.check_out_distance_meters}
+                        checkOutIp={r.check_out_ip}
+                      />
+                    </td>
                   </tr>
                 ))}
               </tbody>

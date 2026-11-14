@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { requireAdmin } from "@/lib/auth/session";
+import { requireAdminAccess } from "@/lib/auth/session";
 import { apiError } from "@/lib/attendance/errors";
 import { getTodayInTimezone } from "@/lib/attendance/timezone";
 import type { OfficeSettings } from "@/types";
 
 export async function GET(request: NextRequest) {
   try {
-    await requireAdmin();
+    await requireAdminAccess();
     const supabase = await createClient();
     const { data: office } = await supabase
       .from("office_settings")

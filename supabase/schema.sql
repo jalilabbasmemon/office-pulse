@@ -21,7 +21,7 @@ create table if not exists employees (
   mobile text not null unique,
   designation text not null,
   shift_id uuid references shifts(id),
-  role text not null default 'EMPLOYEE' check (role in ('ADMIN', 'EMPLOYEE')),
+  role text not null default 'EMPLOYEE' check (role in ('ADMIN', 'ADMIN_VIEWER', 'EMPLOYEE')),
   status text not null default 'ACTIVE' check (status in ('ACTIVE', 'INACTIVE')),
   must_change_password boolean not null default false,
   created_at timestamptz not null default now(),
@@ -165,10 +165,25 @@ as $$
   );
 $$;
 
+create or replace function public.is_admin_staff()
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select exists (
+    select 1 from employees
+    where auth_user_id = auth.uid()
+      and role in ('ADMIN', 'ADMIN_VIEWER')
+      and status = 'ACTIVE'
+  );
+$$;
+
 -- Employees policies
 create policy "Employees can read own profile"
   on employees for select
-  using (auth_user_id = auth.uid() or public.is_admin());
+  using (auth_user_id = auth.uid() or public.is_admin_staff());
 
 create policy "Admins can insert employees"
   on employees for insert
@@ -209,7 +224,7 @@ create policy "Employees read own attendance"
   on attendance for select
   using (
     employee_id = (select id from employees where auth_user_id = auth.uid())
-    or public.is_admin()
+    or public.is_admin_staff()
   );
 
 create policy "Employees insert own attendance"
@@ -228,7 +243,7 @@ create policy "Employees update own attendance"
 -- Audit logs (admin only)
 create policy "Admins read audit logs"
   on audit_logs for select
-  using (public.is_admin());
+  using (public.is_admin_staff());
 
 create policy "Admins insert audit logs"
   on audit_logs for insert

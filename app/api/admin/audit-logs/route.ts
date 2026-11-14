@@ -1,11 +1,11 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { requireAdmin } from "@/lib/auth/session";
+import { requireAdminAccess } from "@/lib/auth/session";
 import { apiError } from "@/lib/attendance/errors";
 
 export async function GET() {
   try {
-    await requireAdmin();
+    await requireAdminAccess();
     const supabase = await createClient();
     const { data, error } = await supabase
       .from("audit_logs")

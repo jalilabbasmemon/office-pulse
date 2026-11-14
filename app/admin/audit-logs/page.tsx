@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentEmployee } from "@/lib/auth/session";
+import { isAdminStaff } from "@/lib/auth/roles";
 import { AppNav } from "@/components/nav";
 import { Card } from "@/components/ui/card";
 import { formatDate } from "@/lib/utils";
@@ -8,7 +9,7 @@ import { formatDate } from "@/lib/utils";
 export default async function AuditLogsPage() {
   const employee = await getCurrentEmployee();
   if (!employee) redirect("/login");
-  if (employee.role !== "ADMIN") redirect("/dashboard");
+  if (!isAdminStaff(employee.role)) redirect("/dashboard");
 
   const supabase = await createClient();
   const { data: logs } = await supabase

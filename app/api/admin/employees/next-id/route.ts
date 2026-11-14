@@ -8,7 +8,12 @@ export async function GET(request: NextRequest) {
   try {
     await requireAdmin();
     const roleParam = request.nextUrl.searchParams.get("role");
-    const role = roleParam === "ADMIN" ? "ADMIN" : "EMPLOYEE";
+    const role =
+      roleParam === "ADMIN"
+        ? "ADMIN"
+        : roleParam === "ADMIN_VIEWER"
+          ? "ADMIN_VIEWER"
+          : "EMPLOYEE";
 
     const supabase = await createClient();
     const { data, error } = await supabase.from("employees").select("employee_id");

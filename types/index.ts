@@ -1,4 +1,4 @@
-export type UserRole = "ADMIN" | "EMPLOYEE";
+export type UserRole = "ADMIN" | "ADMIN_VIEWER" | "EMPLOYEE";
 export type EmployeeStatus = "ACTIVE" | "INACTIVE";
 export type ShiftStatus = "ACTIVE" | "INACTIVE";
 export type AttendanceStatus = "OPEN" | "CLOSED" | "ABSENT" | "CORRECTED";

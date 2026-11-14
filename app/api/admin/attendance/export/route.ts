@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { requireAdmin } from "@/lib/auth/session";
+import { requireAdminAccess } from "@/lib/auth/session";
 import { apiError } from "@/lib/attendance/errors";
 import { buildMonthlyAttendanceWorkbook } from "@/lib/excel/export";
 import type { Attendance, Employee, OfficeSettings, Shift } from "@/types";
 
 export async function GET(request: NextRequest) {
   try {
-    await requireAdmin();
+    await requireAdminAccess();
     const month =
       request.nextUrl.searchParams.get("month") ??
       new Date().toISOString().slice(0, 7);

@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { BrandLogo } from "@/components/brand-logo";
 
 type NavProps = {
-  role: "ADMIN" | "EMPLOYEE";
+  role: "ADMIN" | "ADMIN_VIEWER" | "EMPLOYEE";
   name: string;
 };
 
@@ -34,7 +34,8 @@ const adminLinks = [
 export function AppNav({ role, name }: NavProps) {
   const pathname = usePathname();
   const router = useRouter();
-  const links = role === "ADMIN" ? adminLinks : employeeLinks;
+  const links =
+    role === "ADMIN" || role === "ADMIN_VIEWER" ? adminLinks : employeeLinks;
 
   async function logout() {
     const supabase = createClient();

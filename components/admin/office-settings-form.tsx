@@ -28,8 +28,10 @@ const OfficeLocationMap = dynamic(
 
 export function OfficeSettingsForm({
   settings,
+  readOnly = false,
 }: {
   settings: OfficeSettings | null;
+  readOnly?: boolean;
 }) {
   const [pending, startTransition] = useTransition();
   const [gpsPending, setGpsPending] = useState(false);
@@ -109,6 +111,7 @@ export function OfficeSettingsForm({
 
   function onSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (readOnly) return;
     setError(null);
     setMessage(null);
     startTransition(async () => {
@@ -143,6 +146,12 @@ export function OfficeSettingsForm({
 
   return (
     <form onSubmit={onSubmit} className="space-y-4">
+      {readOnly ? (
+        <p className="rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-800">
+          View-only account — settings cannot be changed.
+        </p>
+      ) : null}
+      <fieldset disabled={readOnly} className="space-y-4">
       <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-600">
         <p className="font-medium text-slate-800">How network checks work</p>
         <p className="mt-1">
@@ -340,6 +349,7 @@ export function OfficeSettingsForm({
           onChange={(e) => update("timezone", e.target.value)}
         />
       </div>
+      </fieldset>
       {error && (
         <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">
           {error}
@@ -350,9 +360,11 @@ export function OfficeSettingsForm({
           {message}
         </p>
       )}
-      <Button type="submit" disabled={pending}>
-        {pending ? "Saving…" : "Save settings"}
-      </Button>
+      {!readOnly ? (
+        <Button type="submit" disabled={pending}>
+          {pending ? "Saving…" : "Save settings"}
+        </Button>
+      ) : null}
     </form>
   );
 }

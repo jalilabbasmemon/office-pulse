@@ -1,9 +1,10 @@
-/** Next EMP### / ADM### style ID from existing IDs. */
+/** Next EMP### / ADM### / VW### style ID from existing IDs. */
 export function nextEmployeeId(
   existingIds: string[],
-  role: "ADMIN" | "EMPLOYEE" = "EMPLOYEE"
+  role: "ADMIN" | "ADMIN_VIEWER" | "EMPLOYEE" = "EMPLOYEE"
 ): string {
-  const prefix = role === "ADMIN" ? "ADM" : "EMP";
+  const prefix =
+    role === "ADMIN" ? "ADM" : role === "ADMIN_VIEWER" ? "VW" : "EMP";
   let max = 0;
   for (const id of existingIds) {
     const match = id.match(new RegExp(`^${prefix}(\\d+)$`, "i"));

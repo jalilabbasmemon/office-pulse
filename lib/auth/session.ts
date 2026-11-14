@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { canWriteAdmin, isAdminStaff } from "@/lib/auth/roles";
 import type { Employee } from "@/types";
 
 export async function getSessionUser() {
@@ -36,9 +37,22 @@ export async function requireEmployee(): Promise<Employee> {
   return employee;
 }
 
+/** Full admin only — mutations (create/edit/delete/correct/settings). */
 export async function requireAdmin(): Promise<Employee> {
   const employee = await requireEmployee();
-  if (employee.role !== "ADMIN") {
+  if (!canWriteAdmin(employee.role)) {
+    throw new Error("FORBIDDEN");
+  }
+  if (employee.status !== "ACTIVE") {
+    throw new Error("EMPLOYEE_INACTIVE");
+  }
+  return employee;
+}
+
+/** Admin or Admin Viewer — read-only admin APIs and pages. */
+export async function requireAdminAccess(): Promise<Employee> {
+  const employee = await requireEmployee();
+  if (!isAdminStaff(employee.role)) {
     throw new Error("FORBIDDEN");
   }
   if (employee.status !== "ACTIVE") {

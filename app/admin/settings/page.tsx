@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentEmployee } from "@/lib/auth/session";
+import { canWriteAdmin, isAdminStaff } from "@/lib/auth/roles";
 import { AppNav } from "@/components/nav";
 import { Card, CardTitle } from "@/components/ui/card";
 import { OfficeSettingsForm } from "@/components/admin/office-settings-form";
@@ -9,7 +10,7 @@ import type { OfficeSettings } from "@/types";
 export default async function SettingsPage() {
   const employee = await getCurrentEmployee();
   if (!employee) redirect("/login");
-  if (employee.role !== "ADMIN") redirect("/dashboard");
+  if (!isAdminStaff(employee.role)) redirect("/dashboard");
 
   const supabase = await createClient();
   const { data: settings } = await supabase
@@ -28,7 +29,10 @@ export default async function SettingsPage() {
             Attendance is only accepted from the office public IP and within the
             configured GPS radius.
           </p>
-          <OfficeSettingsForm settings={(settings as OfficeSettings) ?? null} />
+          <OfficeSettingsForm
+            settings={(settings as OfficeSettings) ?? null}
+            readOnly={!canWriteAdmin(employee.role)}
+          />
         </Card>
       </main>
     </div>

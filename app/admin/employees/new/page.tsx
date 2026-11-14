@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentEmployee } from "@/lib/auth/session";
+import { canWriteAdmin } from "@/lib/auth/roles";
 import { AppNav } from "@/components/nav";
 import { Card, CardTitle } from "@/components/ui/card";
 import { EmployeeForm } from "@/components/admin/employee-form";
@@ -9,7 +10,7 @@ import type { Shift } from "@/types";
 export default async function NewEmployeePage() {
   const employee = await getCurrentEmployee();
   if (!employee) redirect("/login");
-  if (employee.role !== "ADMIN") redirect("/dashboard");
+  if (!canWriteAdmin(employee.role)) redirect("/admin/employees");
 
   const supabase = await createClient();
   const { data: shifts } = await supabase

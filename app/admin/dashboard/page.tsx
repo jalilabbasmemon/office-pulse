@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentEmployee } from "@/lib/auth/session";
+import { isAdminStaff } from "@/lib/auth/roles";
 import { redirectIfMustChangePassword } from "@/lib/auth/password-gate";
 import { getTodayInTimezone } from "@/lib/attendance/timezone";
 import { AppNav } from "@/components/nav";
@@ -12,7 +13,7 @@ import type { OfficeSettings } from "@/types";
 export default async function AdminDashboardPage() {
   const employee = await getCurrentEmployee();
   if (!employee) redirect("/login");
-  if (employee.role !== "ADMIN") redirect("/dashboard");
+  if (!isAdminStaff(employee.role)) redirect("/dashboard");
   redirectIfMustChangePassword(employee);
 
   const supabase = await createClient();

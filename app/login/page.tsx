@@ -61,7 +61,11 @@ export default function LoginPage() {
         return;
       }
 
-      router.push(employee.role === "ADMIN" ? "/admin/dashboard" : "/dashboard");
+      router.push(
+        employee.role === "ADMIN" || employee.role === "ADMIN_VIEWER"
+          ? "/admin/dashboard"
+          : "/dashboard"
+      );
       router.refresh();
     });
   }

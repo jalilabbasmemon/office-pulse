@@ -37,6 +37,9 @@ export function EmployeeForm({ shifts, employee, loginEmail }: Props) {
   const [resetResult, setResetResult] = useState<ResetCredentials | null>(
     null
   );
+  const [resolvedEmail, setResolvedEmail] = useState<string | null>(
+    loginEmail ?? null
+  );
   const [showPassword, setShowPassword] = useState(true);
   const [dialog, setDialog] = useState<DialogKind>(null);
 
@@ -50,6 +53,32 @@ export function EmployeeForm({ shifts, employee, loginEmail }: Props) {
     email: "",
     password: isEdit ? "" : generateTempPassword(),
   });
+
+  useEffect(() => {
+    setResolvedEmail(loginEmail ?? null);
+  }, [loginEmail]);
+
+  useEffect(() => {
+    if (!isEdit || !employee?.id) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`/api/admin/employees/${employee.id}`, {
+          cache: "no-store",
+        });
+        if (!res.ok || cancelled) return;
+        const data = await res.json();
+        if (!cancelled && data.loginEmail) {
+          setResolvedEmail(String(data.loginEmail).trim().toLowerCase());
+        }
+      } catch {
+        // keep SSR value if any
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [isEdit, employee?.id]);
 
   useEffect(() => {
     if (isEdit) return;
@@ -188,16 +217,26 @@ export function EmployeeForm({ shifts, employee, loginEmail }: Props) {
           setError(data.message ?? `Password reset failed (${res.status})`);
           return;
         }
-        if (!data.credentials?.temporary_password) {
+        const tempPassword =
+          data.credentials?.temporary_password ??
+          data.temporary_password ??
+          null;
+        if (!tempPassword) {
           setError(data.message ?? "Reset succeeded but no password returned");
           return;
         }
-        setResetResult({
-          email:
-            data.credentials.email ??
+        const email = String(
+          data.credentials?.email ??
+            resolvedEmail ??
             loginEmail ??
-            "(email missing — check Auth user)",
-          temporary_password: data.credentials.temporary_password,
+            ""
+        )
+          .trim()
+          .toLowerCase();
+        if (email) setResolvedEmail(email);
+        setResetResult({
+          email: email || "Email not found — open Edit again or check Auth",
+          temporary_password: tempPassword,
         });
       }
     });
@@ -235,6 +274,63 @@ export function EmployeeForm({ shifts, employee, loginEmail }: Props) {
         >
           Done
         </Button>
+      </div>
+    );
+  }
+
+  if (resetResult) {
+    return (
+      <div className="space-y-4">
+        <p className="rounded-lg bg-teal-50 px-3 py-2 text-sm text-teal-900">
+          Password reset. Share <strong>both</strong> values below — login uses
+          email, not Employee ID.
+        </p>
+        <div className="space-y-3 rounded-xl border border-teal-200 bg-white p-4 text-sm shadow-sm">
+          <div>
+            <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
+              Login email
+            </p>
+            <p className="mt-1 break-all font-mono text-base font-semibold text-slate-900">
+              {resetResult.email}
+            </p>
+          </div>
+          <div>
+            <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
+              Temporary password
+            </p>
+            <p className="mt-1 font-mono text-base font-semibold text-slate-900">
+              {resetResult.temporary_password}
+            </p>
+          </div>
+          <p className="text-xs text-slate-500">
+            Employee must change this password after signing in.
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <Button
+            type="button"
+            onClick={async () => {
+              const text = `Email: ${resetResult.email}\nPassword: ${resetResult.temporary_password}`;
+              try {
+                await navigator.clipboard.writeText(text);
+              } catch {
+                // ignore
+              }
+            }}
+          >
+            Copy email + password
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => {
+              setResetResult(null);
+              router.refresh();
+            }}
+          >
+            Back to edit
+          </Button>
+        </div>
       </div>
     );
   }
@@ -364,8 +460,8 @@ export function EmployeeForm({ shifts, employee, loginEmail }: Props) {
           <div className="space-y-3 rounded-xl border border-slate-200 bg-slate-50 p-4">
             <div>
               <p className="font-medium text-slate-900">Login email</p>
-              <p className="mt-1 font-mono text-sm font-semibold text-slate-900">
-                {loginEmail ?? "Not found on Auth account"}
+              <p className="mt-1 break-all font-mono text-sm font-semibold text-slate-900">
+                {resolvedEmail ?? "Loading email…"}
               </p>
               <p className="mt-1 text-xs text-slate-500">
                 Employees sign in with this email + password (not Employee ID).
@@ -374,26 +470,9 @@ export function EmployeeForm({ shifts, employee, loginEmail }: Props) {
             <div>
               <p className="font-medium text-slate-900">Forgot password?</p>
               <p className="mt-1 text-xs text-slate-500">
-                Generate a temporary password. Share both the email and password
-                so they can log in and change it under Password.
+                After reset you will see email and temporary password together.
               </p>
             </div>
-            {resetResult && (
-              <div className="space-y-1 rounded-lg bg-teal-50 px-3 py-2 text-sm text-teal-900">
-                <p>
-                  Email:{" "}
-                  <span className="font-mono font-semibold">
-                    {resetResult.email}
-                  </span>
-                </p>
-                <p>
-                  Temporary password:{" "}
-                  <span className="font-mono font-semibold">
-                    {resetResult.temporary_password}
-                  </span>
-                </p>
-              </div>
-            )}
             <Button
               type="button"
               variant="outline"

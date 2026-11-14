@@ -8,6 +8,39 @@ import { employeeUpdateSchema } from "@/validations";
 
 type Ctx = { params: Promise<{ id: string }> };
 
+export async function GET(_request: NextRequest, context: Ctx) {
+  try {
+    await requireAdmin();
+    const { id } = await context.params;
+    const supabase = await createClient();
+    const { data: employee, error } = await supabase
+      .from("employees")
+      .select("*, shifts(*)")
+      .eq("id", id)
+      .maybeSingle();
+
+    if (error) return apiError("SERVER_ERROR", 500, error.message);
+    if (!employee) return apiError("VALIDATION_ERROR", 404, "Employee not found");
+
+    let loginEmail: string | null = null;
+    try {
+      const service = createServiceClient();
+      const { data } = await service.auth.admin.getUserById(employee.auth_user_id);
+      loginEmail = data.user?.email?.trim().toLowerCase() ?? null;
+    } catch (err) {
+      console.error("login email lookup failed", err);
+    }
+
+    return NextResponse.json({ employee, loginEmail });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "";
+    if (message === "UNAUTHORIZED") return apiError("UNAUTHORIZED", 401);
+    if (message === "FORBIDDEN") return apiError("FORBIDDEN", 403);
+    console.error(err);
+    return apiError("SERVER_ERROR", 500);
+  }
+}
+
 export async function PATCH(request: NextRequest, context: Ctx) {
   try {
     const admin = await requireAdmin();

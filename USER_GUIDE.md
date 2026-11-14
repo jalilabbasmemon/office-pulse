@@ -235,12 +235,18 @@ Use the installed icon for faster daily punch.
 2. Banner **Install OfficePulse** → **Install app**  
 3. Or browser menu → **Install app** / **Install page as app**  
 
-### iPhone / iPad (Safari)
+### iPhone / iPad (Safari only)
 
-1. Open in Safari  
-2. **Share** → **Add to Home Screen** → **Add**  
+Apple does **not** show an Install button. You must use **Safari**:
 
-If the banner was dismissed, clear site data or use another browser/profile to see it again.
+1. If the link opened in WhatsApp / Chrome / Instagram → tap **⋯** or Share → **Open in Safari**  
+2. In Safari: tap **Share** (square with ↑)  
+3. Scroll → **Add to Home Screen** → **Add**  
+4. Open the home-screen icon and allow **Location** → **While Using the App** (+ Precise Location)  
+
+Chrome / in-app browsers on iPhone cannot install OfficePulse reliably, and GPS often fails there.
+
+If the install tip was dismissed, clear site data for the site or use a private Safari window once.
 
 ---
 

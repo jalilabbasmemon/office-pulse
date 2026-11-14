@@ -2,6 +2,12 @@
 
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
+import {
+  isIosDevice,
+  isIosInAppBrowser,
+  isIosSafari,
+  isStandaloneDisplay,
+} from "@/lib/platform/ios";
 
 type BeforeInstallPromptEvent = Event & {
   prompt: () => Promise<void>;
@@ -10,34 +16,21 @@ type BeforeInstallPromptEvent = Event & {
 
 const DISMISS_KEY = "officepulse-install-dismissed";
 
-function isIos() {
-  if (typeof navigator === "undefined") return false;
-  return /iphone|ipad|ipod/i.test(navigator.userAgent);
-}
-
-function isStandalone() {
-  if (typeof window === "undefined") return false;
-  return (
-    window.matchMedia("(display-mode: standalone)").matches ||
-    // iOS Safari
-    ("standalone" in navigator &&
-      Boolean((navigator as Navigator & { standalone?: boolean }).standalone))
-  );
-}
-
 export function InstallPrompt() {
   const [deferred, setDeferred] = useState<BeforeInstallPromptEvent | null>(
     null
   );
   const [visible, setVisible] = useState(false);
-  const [iosHint, setIosHint] = useState(false);
+  const [mode, setMode] = useState<"ios-safari" | "ios-other" | "android">(
+    "android"
+  );
 
   useEffect(() => {
-    if (isStandalone()) return;
+    if (isStandaloneDisplay()) return;
     if (localStorage.getItem(DISMISS_KEY) === "1") return;
 
-    if (isIos()) {
-      setIosHint(true);
+    if (isIosDevice()) {
+      setMode(isIosInAppBrowser() || !isIosSafari() ? "ios-other" : "ios-safari");
       setVisible(true);
       return;
     }
@@ -49,7 +42,6 @@ export function InstallPrompt() {
     };
 
     window.addEventListener("beforeinstallprompt", onBeforeInstall);
-    // Show hint even if Chrome delays beforeinstallprompt (engagement heuristic)
     const timer = window.setTimeout(() => setVisible(true), 2500);
     return () => {
       window.clearTimeout(timer);
@@ -83,38 +75,73 @@ export function InstallPrompt() {
             className="h-8 w-8 rounded-full object-cover ring-1 ring-slate-200"
           />
           <p className="text-sm font-semibold text-slate-900">
-            Install OfficePulse
+            {mode === "ios-other" ? "Open in Safari" : "Install OfficePulse"}
           </p>
         </div>
-        {iosHint ? (
-          <p className="mt-1 text-xs leading-relaxed text-slate-600">
-            On iPhone/iPad: tap the <strong>Share</strong> button, then{" "}
-            <strong>Add to Home Screen</strong> to install this app.
-          </p>
+
+        {mode === "ios-other" ? (
+          <div className="mt-1 space-y-2 text-xs leading-relaxed text-slate-600">
+            <p>
+              On iPhone, OfficePulse must run in <strong>Safari</strong>. In-app
+              browsers (Chrome, WhatsApp, Instagram, etc.) cannot install the
+              app or use GPS reliably.
+            </p>
+            <ol className="list-decimal space-y-1 pl-4">
+              <li>
+                Tap the <strong>⋯</strong> or Share menu in this browser
+              </li>
+              <li>
+                Choose <strong>Open in Safari</strong>
+              </li>
+              <li>
+                Then Share → <strong>Add to Home Screen</strong>
+              </li>
+            </ol>
+          </div>
+        ) : mode === "ios-safari" ? (
+          <div className="mt-1 space-y-2 text-xs leading-relaxed text-slate-600">
+            <p>Install on iPhone (there is no Install button on Apple):</p>
+            <ol className="list-decimal space-y-1 pl-4">
+              <li>
+                Tap the <strong>Share</strong> button (square with ↑)
+              </li>
+              <li>
+                Scroll and tap <strong>Add to Home Screen</strong>
+              </li>
+              <li>
+                Tap <strong>Add</strong>
+              </li>
+            </ol>
+            <p>
+              Then allow <strong>Location</strong> when asked so check-in works.
+            </p>
+          </div>
         ) : deferred ? (
           <p className="mt-1 text-xs leading-relaxed text-slate-600">
             Add a home screen shortcut for faster check-in and check-out.
           </p>
         ) : (
           <p className="mt-1 text-xs leading-relaxed text-slate-600">
-            On Android Chrome: open the menu (⋮) → <strong>Install app</strong>{" "}
-            or <strong>Add to Home screen</strong>. If it says blocked, check
-            Chrome → Site settings → Install apps → Allow.
+            On Android Chrome: menu (⋮) → <strong>Install app</strong> or{" "}
+            <strong>Add to Home screen</strong>.
           </p>
         )}
+
         <div className="mt-3 flex gap-2">
-          {!iosHint && deferred && (
+          {mode === "android" && deferred && (
             <Button type="button" className="flex-1" onClick={install}>
               Install app
             </Button>
           )}
           <Button
             type="button"
-            variant={iosHint || !deferred ? "default" : "outline"}
+            variant={
+              mode.startsWith("ios") || !deferred ? "default" : "outline"
+            }
             className="flex-1"
             onClick={dismiss}
           >
-            {iosHint ? "Got it" : "Not now"}
+            {mode.startsWith("ios") ? "Got it" : "Not now"}
           </Button>
         </div>
       </div>

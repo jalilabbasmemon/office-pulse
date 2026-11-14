@@ -52,22 +52,37 @@ export type AcquireLiveGpsOptions = {
   onProgress?: (reading: LiveGpsReading) => void;
 };
 
+function isIosUa() {
+  if (typeof navigator === "undefined") return false;
+  return (
+    /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+    (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1)
+  );
+}
+
 function mapGeoError(err: GeolocationPositionError): LiveGpsError {
+  const ios = isIosUa();
   if (err.code === err.PERMISSION_DENIED) {
     return new LiveGpsError(
       "PERMISSION_DENIED",
-      "Location access is required. Allow location for this site in the browser, and turn on Windows Location services."
+      ios
+        ? "Location is blocked. On iPhone: Settings → Privacy & Security → Location Services → Safari Websites (or OfficePulse) → While Using the App. Also allow Precise Location."
+        : "Location access is required. Allow location for this site in the browser, and turn on Windows Location services."
     );
   }
   if (err.code === err.TIMEOUT) {
     return new LiveGpsError(
       "TIMEOUT",
-      "Timed out waiting for GPS. Move near a window, enable high-accuracy location in Windows, or set the pin on the map / use a phone."
+      ios
+        ? "Timed out waiting for GPS. Go outdoors or near a window, ensure Location is On, then tap Refresh location."
+        : "Timed out waiting for GPS. Move near a window, enable high-accuracy location in Windows, or set the pin on the map / use a phone."
     );
   }
   return new LiveGpsError(
     "UNAVAILABLE",
-    "Could not read live GPS. This PC may only have IP/network location (often a city like Islamabad). Use a phone, or place the office pin on the map manually."
+    ios
+      ? "Could not read GPS. Open this site in Safari (not Chrome/WhatsApp), allow Location, and try again."
+      : "Could not read live GPS. This PC may only have IP/network location (often a city like Islamabad). Use a phone, or place the office pin on the map manually."
   );
 }
 
@@ -146,11 +161,14 @@ export function acquireLiveGps(
 
     timer = setTimeout(() => {
       finish(() => {
+        const ios = isIosUa();
         if (!best) {
           reject(
             new LiveGpsError(
               "TIMEOUT",
-              "No live GPS fix yet. Enable Windows Location (Settings → Privacy → Location), use a phone with GPS, or set the office pin on the map."
+              ios
+                ? "No GPS fix yet. Use Safari, turn on Location Services, allow Precise Location, then tap Refresh location outdoors or near a window."
+                : "No live GPS fix yet. Enable Windows Location (Settings → Privacy → Location), use a phone with GPS, or set the office pin on the map."
             )
           );
           return;
@@ -159,7 +177,9 @@ export function acquireLiveGps(
           reject(
             new LiveGpsError(
               "COARSE_ONLY",
-              `Only a coarse/network location was available (~${Math.round(best.accuracy)}m). That is usually the PC’s default or IP city (e.g. Islamabad), not live GPS. Place the pin on the map, or use a phone outdoors with Location on.`
+              ios
+                ? `GPS accuracy is too weak (~${Math.round(best.accuracy)}m). Enable Precise Location for Safari/OfficePulse and try outdoors.`
+                : `Only a coarse/network location was available (~${Math.round(best.accuracy)}m). That is usually the PC’s default or IP city (e.g. Islamabad), not live GPS. Place the pin on the map, or use a phone outdoors with Location on.`
             )
           );
           return;

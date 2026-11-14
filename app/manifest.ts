@@ -7,10 +7,12 @@ export default function manifest(): MetadataRoute.Manifest {
     short_name: "OfficePulse",
     description:
       "Office check-in and check-out with GPS and office Wi‑Fi validation.",
-    start_url: "/dashboard",
+    // "/" routes to login or dashboard; avoids iOS home-screen cold start
+    // landing on /dashboard before cookies are ready.
+    start_url: "/",
     scope: "/",
     display: "standalone",
-    orientation: "portrait-primary",
+    orientation: "any",
     background_color: "#f8fafc",
     theme_color: "#0f766e",
     categories: ["business", "productivity"],

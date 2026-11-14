@@ -1,6 +1,7 @@
-import * as XLSX from "xlsx";
+import ExcelJS from "exceljs";
 import type { Attendance, Employee, Shift } from "@/types";
 import { formatMinutes, formatShortDate, formatTime } from "@/lib/utils";
+import { asExcelCellValue, asExcelText } from "@/lib/excel/sanitize";
 
 type Row = Attendance & {
   employees?: (Employee & { shifts?: Shift | null }) | null;
@@ -31,50 +32,117 @@ function attendanceFlags(r: Row): string {
   return flags.join(" | ");
 }
 
-export function buildMonthlyAttendanceWorkbook(
+function addHeaderRow(sheet: ExcelJS.Worksheet, headers: string[]) {
+  const row = sheet.addRow(headers.map((h) => asExcelText(h)));
+  row.font = { bold: true };
+  row.eachCell((cell) => {
+    cell.numFmt = "@";
+  });
+}
+
+function addDataRow(sheet: ExcelJS.Worksheet, values: unknown[]) {
+  const row = sheet.addRow(values.map((v) => asExcelCellValue(v)));
+  row.eachCell((cell) => {
+    // Force text for string cells so Excel does not re-interpret formulas
+    if (typeof cell.value === "string") {
+      cell.numFmt = "@";
+    }
+  });
+}
+
+export async function buildMonthlyAttendanceWorkbook(
   rows: Row[],
   monthLabel: string,
   timeZone = "Asia/Karachi"
-): ArrayBuffer {
+): Promise<ArrayBuffer> {
   const sorted = [...rows].sort((a, b) => {
     const byDate = a.attendance_date.localeCompare(b.attendance_date);
     if (byDate !== 0) return byDate;
     return (a.employees?.name ?? "").localeCompare(b.employees?.name ?? "");
   });
 
-  const daily = sorted.map((r) => {
+  const workbook = new ExcelJS.Workbook();
+  workbook.creator = "OfficePulse";
+  workbook.created = new Date();
+
+  const dailySheet = workbook.addWorksheet("Daily Attendance", {
+    views: [{ state: "frozen", ySplit: 1 }],
+  });
+
+  const dailyHeaders = [
+    "Date",
+    "Date (display)",
+    "Employee ID",
+    "Name",
+    "Designation",
+    "Shift",
+    "Shift Start",
+    "Shift End",
+    "Grace (min)",
+    "Check In",
+    "Check Out",
+    "Hours",
+    "Work Minutes",
+    "Punctuality",
+    "Late?",
+    "Early Leave?",
+    "Leave Status",
+    "Flags",
+    "Record Status",
+    "Check-in Latitude",
+    "Check-in Longitude",
+    "Check-in Distance (m)",
+    "Check-in Accuracy (m)",
+    "Check-in IP",
+    "Check-in Location",
+    "Check-out Latitude",
+    "Check-out Longitude",
+    "Check-out Distance (m)",
+    "Check-out Accuracy (m)",
+    "Check-out IP",
+    "Check-out Location",
+  ];
+  addHeaderRow(dailySheet, dailyHeaders);
+
+  for (const r of sorted) {
     const shift = r.employees?.shifts;
-    return {
-      Date: r.attendance_date,
-      "Date (display)": formatShortDate(r.attendance_date, timeZone),
-      "Employee ID": r.employees?.employee_id ?? "",
-      Name: r.employees?.name ?? "",
-      Designation: r.employees?.designation ?? "",
-      Shift: shift?.name ?? "",
-      "Shift Start": shift?.start_time?.slice(0, 5) ?? "",
-      "Shift End": shift?.end_time?.slice(0, 5) ?? "",
-      "Grace (min)": shift?.grace_minutes ?? "",
-      "Check In": formatTime(r.check_in_time, timeZone),
-      "Check Out": formatTime(r.check_out_time, timeZone),
-      Hours: formatMinutes(r.total_work_minutes),
-      "Work Minutes": r.total_work_minutes ?? "",
-      Punctuality: punctualityLabel(r),
-      "Late?": !r.check_in_time ? "--" : r.is_late ? "Yes" : "No",
-      "Early Leave?": !r.check_out_time ? "--" : r.is_early_leave ? "Yes" : "No",
-      "Leave Status": leaveLabel(r),
-      Flags: attendanceFlags(r),
-      "Record Status": r.status,
-      "Check-in Latitude": r.check_in_latitude ?? "",
-      "Check-in Longitude": r.check_in_longitude ?? "",
-      "Check-in Distance (m)": r.check_in_distance_meters ?? "",
-      "Check-in Accuracy (m)": r.check_in_accuracy ?? "",
-      "Check-in IP": r.check_in_ip ?? "",
-      "Check-out Latitude": r.check_out_latitude ?? "",
-      "Check-out Longitude": r.check_out_longitude ?? "",
-      "Check-out Distance (m)": r.check_out_distance_meters ?? "",
-      "Check-out Accuracy (m)": r.check_out_accuracy ?? "",
-      "Check-out IP": r.check_out_ip ?? "",
-    };
+    addDataRow(dailySheet, [
+      r.attendance_date,
+      formatShortDate(r.attendance_date, timeZone),
+      r.employees?.employee_id ?? "",
+      r.employees?.name ?? "",
+      r.employees?.designation ?? "",
+      shift?.name ?? "",
+      shift?.start_time?.slice(0, 5) ?? "",
+      shift?.end_time?.slice(0, 5) ?? "",
+      shift?.grace_minutes ?? "",
+      formatTime(r.check_in_time, timeZone),
+      formatTime(r.check_out_time, timeZone),
+      formatMinutes(r.total_work_minutes),
+      r.total_work_minutes ?? "",
+      punctualityLabel(r),
+      !r.check_in_time ? "--" : r.is_late ? "Yes" : "No",
+      !r.check_out_time ? "--" : r.is_early_leave ? "Yes" : "No",
+      leaveLabel(r),
+      attendanceFlags(r),
+      r.status,
+      r.check_in_latitude ?? "",
+      r.check_in_longitude ?? "",
+      r.check_in_distance_meters ?? "",
+      r.check_in_accuracy ?? "",
+      r.check_in_ip ?? "",
+      r.check_in_location_name ?? "",
+      r.check_out_latitude ?? "",
+      r.check_out_longitude ?? "",
+      r.check_out_distance_meters ?? "",
+      r.check_out_accuracy ?? "",
+      r.check_out_ip ?? "",
+      r.check_out_location_name ?? "",
+    ]);
+  }
+
+  dailySheet.columns.forEach((col) => {
+    col.width = 16;
   });
 
   type Agg = {
@@ -120,23 +188,45 @@ export function buildMonthlyAttendanceWorkbook(
     byEmployee.set(key, existing);
   }
 
-  const summary = Array.from(byEmployee.values())
-    .sort((a, b) => a.name.localeCompare(b.name))
-    .map((e) => ({
-      "Employee ID": e.employeeId,
-      Name: e.name,
-      Designation: e.designation,
-      Shift: e.shift,
-      "Days Present": e.present,
-      "On Time Days": e.onTime,
-      "Late Days": e.late,
-      "Early Leave Days": e.earlyLeave,
-      "Missing Checkout": e.missingCheckout,
-      "Total Hours": formatMinutes(e.minutes),
-      "Total Minutes": e.minutes,
-      "Late %":
-        e.present > 0 ? `${Math.round((e.late / e.present) * 100)}%` : "0%",
-    }));
+  const summarySheet = workbook.addWorksheet("Monthly Summary", {
+    views: [{ state: "frozen", ySplit: 1 }],
+  });
+  addHeaderRow(summarySheet, [
+    "Employee ID",
+    "Name",
+    "Designation",
+    "Shift",
+    "Days Present",
+    "On Time Days",
+    "Late Days",
+    "Early Leave Days",
+    "Missing Checkout",
+    "Total Hours",
+    "Total Minutes",
+    "Late %",
+  ]);
+
+  for (const e of Array.from(byEmployee.values()).sort((a, b) =>
+    a.name.localeCompare(b.name)
+  )) {
+    addDataRow(summarySheet, [
+      e.employeeId,
+      e.name,
+      e.designation,
+      e.shift,
+      e.present,
+      e.onTime,
+      e.late,
+      e.earlyLeave,
+      e.missingCheckout,
+      formatMinutes(e.minutes),
+      e.minutes,
+      e.present > 0 ? `${Math.round((e.late / e.present) * 100)}%` : "0%",
+    ]);
+  }
+  summarySheet.columns.forEach((col) => {
+    col.width = 16;
+  });
 
   const totals = {
     Records: sorted.length,
@@ -149,10 +239,8 @@ export function buildMonthlyAttendanceWorkbook(
     ).length,
   };
 
-  const wb = XLSX.utils.book_new();
-  const ws1 = XLSX.utils.json_to_sheet(daily);
-  const ws2 = XLSX.utils.json_to_sheet(summary);
-  const ws3 = XLSX.utils.aoa_to_sheet([
+  const meta = workbook.addWorksheet("Meta");
+  const metaRows: unknown[][] = [
     ["OfficePulse Monthly Attendance Report"],
     [],
     ["Month", monthLabel],
@@ -167,19 +255,11 @@ export function buildMonthlyAttendanceWorkbook(
     ["Late", "Checked in after shift start + grace minutes"],
     ["Early Leave", "Checked out before shift end time"],
     ["Flags", "Combined LATE / ON_TIME / EARLY_LEAVE / FULL_DAY markers"],
-  ]);
+  ];
+  for (const line of metaRows) {
+    addDataRow(meta, line);
+  }
 
-  // Reasonable column widths for readability
-  ws1["!cols"] = Object.keys(daily[0] ?? { A: 1 }).map((key) => ({
-    wch: Math.min(Math.max(String(key).length + 2, 12), 28),
-  }));
-  ws2["!cols"] = Object.keys(summary[0] ?? { A: 1 }).map((key) => ({
-    wch: Math.min(Math.max(String(key).length + 2, 12), 22),
-  }));
-
-  XLSX.utils.book_append_sheet(wb, ws1, "Daily Attendance");
-  XLSX.utils.book_append_sheet(wb, ws2, "Monthly Summary");
-  XLSX.utils.book_append_sheet(wb, ws3, "Meta");
-
-  return XLSX.write(wb, { type: "array", bookType: "xlsx" }) as ArrayBuffer;
+  const buffer = await workbook.xlsx.writeBuffer();
+  return buffer as ArrayBuffer;
 }

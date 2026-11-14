@@ -15,6 +15,7 @@
   // Keep SUPABASE_SECRET_KEY as a Cloudflare Secret (never commit it here).
   "vars": {
     "NEXT_PUBLIC_APP_URL": "https://office-pulse.jalilabbasmemon.workers.dev",
+    "NEXT_PUBLIC_APP_ENV": "production",
     "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY": "sb_publishable_UyhHixVXD593dGb2uF46Tg_9dLHVicz",
     "NEXT_PUBLIC_SUPABASE_URL": "https://jniyfhpwrjofdljqsdwd.supabase.co"
   }

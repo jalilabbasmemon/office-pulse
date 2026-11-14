@@ -23,19 +23,110 @@ export function normalizeIp(ip: string | null | undefined): string {
 }
 
 /**
+ * True when the deployment is the live production app.
+ * NODE_ENV=production alone is not enough — OpenNext Workers always set it.
+ */
+export function isStrictProductionAppEnv(): boolean {
+  return process.env.NEXT_PUBLIC_APP_ENV === "production";
+}
+
+/**
+ * Runtime that uses production IP fail-closed policy (no XFF trust).
+ * QA Workers use NEXT_PUBLIC_APP_ENV=qa so adapter testing remains possible.
+ */
+export function isProductionRuntime(): boolean {
+  if (isStrictProductionAppEnv()) return true;
+  if (process.env.NODE_ENV === "production") {
+    const appEnv = (process.env.NEXT_PUBLIC_APP_ENV || "").toLowerCase();
+    // Explicit nonprod app envs on Workers (NODE_ENV still "production")
+    if (appEnv === "qa" || appEnv === "staging" || appEnv === "preview") {
+      return false;
+    }
+    return true;
+  }
+  return false;
+}
+
+/** Hosts that must never honor the E2E IP header (fail-closed). */
+export function isDeniedProductionHost(
+  appUrl = process.env.NEXT_PUBLIC_APP_URL
+): boolean {
+  // Production app env never allows hostname override (SEC-F-010).
+  if (isStrictProductionAppEnv()) return true;
+  if (!appUrl) return false;
+  // Explicit opt-in for a preview that reuses a production-looking hostname.
+  // Ignored when NEXT_PUBLIC_APP_ENV=production (above).
+  if (process.env.E2E_NONPROD_HOST === "1") return false;
+  try {
+    const host = new URL(appUrl).hostname.toLowerCase();
+    if (host === "localhost" || host === "127.0.0.1") return false;
+    if (
+      host.includes("preview") ||
+      host.includes("staging") ||
+      host.includes("test") ||
+      host.includes("-qa.") ||
+      host.startsWith("office-pulse-qa.")
+    ) {
+      return false;
+    }
+    // Known production Worker hostname patterns for this product.
+    if (host === "office-pulse.workers.dev") return true;
+    if (host.startsWith("office-pulse.") && host.endsWith(".workers.dev")) {
+      return true;
+    }
+  } catch {
+    return false;
+  }
+  return false;
+}
+
+/**
+ * Test-only trusted IP adapter for local / QA Worker E2E.
+ * Never active when NEXT_PUBLIC_APP_ENV=production.
+ * On Workers (NODE_ENV=production), requires explicit APP_ENV=qa|staging|preview.
+ * Never overrides Cloudflare cf-connecting-ip.
+ */
+export function isE2eTrustedIpAdapterEnabled(): boolean {
+  if (isStrictProductionAppEnv()) return false;
+  if (process.env.E2E_TRUSTED_IP_ADAPTER !== "1") return false;
+  if (isDeniedProductionHost()) return false;
+
+  const appEnv = (process.env.NEXT_PUBLIC_APP_ENV || "").toLowerCase();
+  if (appEnv === "qa" || appEnv === "staging" || appEnv === "preview") {
+    return true;
+  }
+  // Local `next dev` only — bare NODE_ENV=production (live Worker) stays closed.
+  if (process.env.NODE_ENV !== "production") return true;
+  return false;
+}
+
+/**
  * Best-effort client public IP.
- * On Cloudflare, prefer cf-connecting-ip (true visitor IP).
+ * On Cloudflare, prefer cf-connecting-ip (true visitor IP) and NEVER let
+ * client-supplied x-officepulse-e2e-ip override it.
  */
 export function getRequestIp(request: NextRequest): string {
+  // 1) Cloudflare visitor IP always wins — fail-closed against header spoofing.
   const cfIp = request.headers.get("cf-connecting-ip");
   if (cfIp) return normalizeIp(cfIp);
 
+  // 2) QA/local adapter (env-gated). Allowed on Workers only when APP_ENV=qa|staging|preview.
+  if (isE2eTrustedIpAdapterEnabled()) {
+    const e2eIp = request.headers.get("x-officepulse-e2e-ip");
+    if (e2eIp?.trim()) return normalizeIp(e2eIp);
+  }
+
+  // 3) Strict production: do NOT trust client XFF / X-Real-IP (SEC-F-005).
+  if (isProductionRuntime()) {
+    return "0.0.0.0";
+  }
+
+  // 4) Local/dev without adapter: best-effort proxy headers.
   const realIp = request.headers.get("x-real-ip");
   if (realIp) return normalizeIp(realIp);
 
   const forwarded = request.headers.get("x-forwarded-for");
   if (forwarded) {
-    // Left-most is usually the original client
     const first = forwarded.split(",")[0]?.trim();
     if (first) return normalizeIp(first);
   }

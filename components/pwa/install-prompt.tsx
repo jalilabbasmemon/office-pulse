@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { usePathname } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import {
   isIosDevice,
@@ -16,7 +17,18 @@ type BeforeInstallPromptEvent = Event & {
 
 const DISMISS_KEY = "officepulse-install-dismissed";
 
+/** Auth / password screens must stay fully tappable (Safari + small phones). */
+function isAuthCriticalPath(pathname: string | null) {
+  if (!pathname) return false;
+  return (
+    pathname === "/login" ||
+    pathname.startsWith("/change-password") ||
+    pathname.startsWith("/api/auth")
+  );
+}
+
 export function InstallPrompt() {
+  const pathname = usePathname();
   const [deferred, setDeferred] = useState<BeforeInstallPromptEvent | null>(
     null
   );
@@ -28,6 +40,11 @@ export function InstallPrompt() {
   useEffect(() => {
     if (isStandaloneDisplay()) return;
     if (localStorage.getItem(DISMISS_KEY) === "1") return;
+    // Never cover Sign in / password change — confirmed WebKit/iPhone failure mode.
+    if (isAuthCriticalPath(pathname)) {
+      setVisible(false);
+      return;
+    }
 
     if (isIosDevice()) {
       setMode(isIosInAppBrowser() || !isIosSafari() ? "ios-other" : "ios-safari");
@@ -47,9 +64,9 @@ export function InstallPrompt() {
       window.clearTimeout(timer);
       window.removeEventListener("beforeinstallprompt", onBeforeInstall);
     };
-  }, []);
+  }, [pathname]);
 
-  if (!visible) return null;
+  if (!visible || isAuthCriticalPath(pathname)) return null;
 
   async function install() {
     if (!deferred) return;

@@ -16,7 +16,7 @@ import {
   acquireLiveGps,
   LiveGpsError,
 } from "@/lib/location/live-gps";
-import { isIosDevice, isIosSafari } from "@/lib/platform/ios";
+import { isIosDevice } from "@/lib/platform/ios";
 import type {
   Attendance,
   Employee,
@@ -464,7 +464,8 @@ export function AttendanceCard({
                   .join(", ")})`
               : ""}
             .
-            {isIosSafari()
+            {/* iosHint is set after mount — avoid SSR/client Safari UA mismatch. */}
+            {iosHint
               ? " Safari tip: allow Location; Private Relay can also change your IP."
               : ""}
           </p>

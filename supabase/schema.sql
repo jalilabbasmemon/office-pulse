@@ -260,18 +260,13 @@ create policy "Employees read own attendance"
     or public.is_admin_staff()
   );
 
-create policy "Employees insert own attendance"
-  on attendance for insert
-  with check (
-    employee_id = (select id from employees where auth_user_id = auth.uid())
-  );
-
-create policy "Employees update own attendance"
+-- SEC-002: employees must NOT insert/update attendance via PostgREST.
+-- Punches use server service role after GPS/IP validation.
+-- Admin corrections use is_admin() update policy or service role.
+create policy "Admins update attendance"
   on attendance for update
-  using (
-    employee_id = (select id from employees where auth_user_id = auth.uid())
-    or public.is_admin()
-  );
+  using (public.is_admin())
+  with check (public.is_admin());
 
 -- Audit logs (admin only)
 create policy "Admins read audit logs"

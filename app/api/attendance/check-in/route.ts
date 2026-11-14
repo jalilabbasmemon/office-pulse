@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { createClient, createServiceClient } from "@/lib/supabase/server";
 import { getCurrentEmployee } from "@/lib/auth/session";
 import { apiError } from "@/lib/attendance/errors";
 import { getTodayInTimezone, isLate } from "@/lib/attendance/timezone";
@@ -25,6 +25,8 @@ export async function POST(request: NextRequest) {
     const parsed = gpsSchema.safeParse(body);
     const gps = parsed.success ? parsed.data : null;
 
+    // Reads use the user-scoped client; writes use service role AFTER validation
+    // so employees cannot bypass RLS (SEC-F-001). Never trust body.employee_id.
     const supabase = await createClient();
     const [{ data: office, error: officeError }, { data: locations }] =
       await Promise.all([
@@ -63,7 +65,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { data: existing } = await supabase
+    const writer = createServiceClient();
+    const { data: existing } = await writer
       .from("attendance")
       .select("id, check_in_time")
       .eq("employee_id", employee.id)
@@ -74,6 +77,7 @@ export async function POST(request: NextRequest) {
       return apiError("ALREADY_CHECKED_IN", 409);
     }
 
+    // Server clock is authoritative — ignore any client timestamp.
     const now = new Date().toISOString();
     const shift = employee.shifts as Shift | null | undefined;
     const late = shift
@@ -101,16 +105,18 @@ export async function POST(request: NextRequest) {
 
     let attendance;
     if (existing) {
-      const { data, error } = await supabase
+      const { data, error } = await writer
         .from("attendance")
         .update(payload)
         .eq("id", existing.id)
+        .is("check_in_time", null)
         .select("*")
-        .single();
+        .maybeSingle();
       if (error) throw error;
+      if (!data) return apiError("ALREADY_CHECKED_IN", 409);
       attendance = data;
     } else {
-      const { data, error } = await supabase
+      const { data, error } = await writer
         .from("attendance")
         .insert(payload)
         .select("*")

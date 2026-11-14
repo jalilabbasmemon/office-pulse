@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { createClient, createServiceClient } from "@/lib/supabase/server";
 import { requireAdmin } from "@/lib/auth/session";
 import { sessionErrorResponse } from "@/lib/auth/session-errors";
 import { writeAuditLog } from "@/lib/auth/audit";
@@ -17,6 +17,7 @@ type Ctx = { params: Promise<{ id: string }> };
 
 export async function POST(request: NextRequest, context: Ctx) {
   try {
+    // ADMIN only — ADMIN_VIEWER hits requireAdmin() and is rejected.
     const admin = await requireAdmin();
     const { id } = await context.params;
     const body = await request.json();
@@ -58,7 +59,9 @@ export async function POST(request: NextRequest, context: Ctx) {
         ? isEarlyLeave(checkOut, shift.end_time, timezone)
         : false;
 
-    const { data: attendance, error } = await supabase
+    // Privileged write after ADMIN gate (SEC-F-001). JWT admin policy also exists.
+    const writer = createServiceClient();
+    const { data: attendance, error } = await writer
       .from("attendance")
       .update({
         check_in_time: checkIn,

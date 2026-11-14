@@ -33,7 +33,7 @@ export async function GET(request: NextRequest) {
     const timezone =
       (office as OfficeSettings | null)?.timezone ?? "Asia/Karachi";
 
-    const buffer = buildMonthlyAttendanceWorkbook(
+    const buffer = await buildMonthlyAttendanceWorkbook(
       (data ?? []) as (Attendance & {
         employees?: (Employee & { shifts?: Shift | null }) | null;
       })[],

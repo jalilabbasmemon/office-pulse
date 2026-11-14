@@ -81,11 +81,14 @@ Employee direct INSERT/UPDATE/DELETE denied on `officepulse-qa` — **PASS**.
 
 ## Clean release artifact
 
-See git log after commit created in this session. Target message:
+| Field | Value |
+|-------|-------|
+| Commit | `2bfbf18a20b328c12d3668df32dcae6fbd2e9dbb` |
+| Subject | `sec-004: harden attendance APIs and ship QA punch release harness` |
+| Branch | `main` (ahead of origin by 1; **not pushed**) |
+| Typecheck | `npx tsc --noEmit` — pass |
 
-`sec-004: QA punch harness, adapter gates, release docs`
-
-Working tree was dirty with SEC-002/003/004 remediations; commit consolidates the reviewable RC. **Re-run authorized punch matrix after placing QA secret**, then tag if green.
+Working tree was consolidated into this RC. **Re-run authorized punch matrix after placing QA secret**, then tag if green.
 
 Production build must use `wrangler.jsonc` (not `wrangler.qa.jsonc`) so `E2E_TRUSTED_IP_ADAPTER` is absent and `APP_ENV=production`.
 
@@ -121,6 +124,6 @@ Production build must use `wrangler.jsonc` (not `wrangler.qa.jsonc`) so `E2E_TRU
 | Unauthorized / viewer / inactive / force-pw | Pass |
 | Authorized check-in/out + admin correction | **FAIL / blocked** |
 | Real-device Safari | Pending |
-| Clean RC commit | Created (see SHA below once committed) |
+| Clean RC commit | `2bfbf18a20b328c12d3668df32dcae6fbd2e9dbb` |
 | **Production** | **NO-GO** |
 | **Emergency hotfix** | **NO-GO until punch success green** |

@@ -29,21 +29,36 @@ export type Employee = {
   shifts?: Shift | null;
 };
 
+export type OfficeLocation = {
+  id: string;
+  name: string;
+  address: string | null;
+  latitude: number;
+  longitude: number;
+  allowed_radius_meters: number;
+  is_active: boolean;
+  sort_order: number;
+  created_at?: string;
+  updated_at?: string;
+};
+
 export type OfficeSettings = {
   id: string;
   office_name: string;
   address: string | null;
+  /** Legacy primary pin; prefer `locations` for geofencing. */
   latitude: number;
   longitude: number;
   allowed_radius_meters: number;
   office_public_ip: string | null;
   allowed_office_ips: string[];
   max_gps_accuracy_meters: number;
-  /** When true, office Wi‑Fi (public IP) alone is enough to punch; GPS optional. */
+  /** On office Wi‑Fi, GPS is not required. Off Wi‑Fi, GPS must match a branch. */
   allow_wifi_only_punch: boolean;
   timezone: string;
   created_at: string;
   updated_at: string;
+  locations?: OfficeLocation[];
 };
 
 export type Attendance = {
@@ -56,12 +71,14 @@ export type Attendance = {
   check_in_accuracy: number | null;
   check_in_distance_meters: number | null;
   check_in_ip: string | null;
+  check_in_location_name?: string | null;
   check_out_time: string | null;
   check_out_latitude: number | null;
   check_out_longitude: number | null;
   check_out_accuracy: number | null;
   check_out_distance_meters: number | null;
   check_out_ip: string | null;
+  check_out_location_name?: string | null;
   total_work_minutes: number | null;
   is_late?: boolean;
   is_early_leave?: boolean;

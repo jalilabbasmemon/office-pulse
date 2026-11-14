@@ -5,7 +5,7 @@ import { canWriteAdmin, isAdminStaff } from "@/lib/auth/roles";
 import { AppNav } from "@/components/nav";
 import { Card, CardTitle } from "@/components/ui/card";
 import { OfficeSettingsForm } from "@/components/admin/office-settings-form";
-import type { OfficeSettings } from "@/types";
+import type { OfficeLocation, OfficeSettings } from "@/types";
 
 export default async function SettingsPage() {
   const employee = await getCurrentEmployee();
@@ -13,11 +13,13 @@ export default async function SettingsPage() {
   if (!isAdminStaff(employee.role)) redirect("/dashboard");
 
   const supabase = await createClient();
-  const { data: settings } = await supabase
-    .from("office_settings")
-    .select("*")
-    .limit(1)
-    .maybeSingle();
+  const [{ data: settings }, { data: locations }] = await Promise.all([
+    supabase.from("office_settings").select("*").limit(1).maybeSingle(),
+    supabase
+      .from("office_locations")
+      .select("*")
+      .order("sort_order", { ascending: true }),
+  ]);
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -26,11 +28,12 @@ export default async function SettingsPage() {
         <Card className="space-y-4">
           <CardTitle>Office settings</CardTitle>
           <p className="text-sm text-slate-500">
-            Attendance is only accepted from the office public IP and within the
-            configured GPS radius.
+            Office Wi‑Fi skips GPS. Other networks require GPS inside an HQ /
+            branch radius.
           </p>
           <OfficeSettingsForm
             settings={(settings as OfficeSettings) ?? null}
+            locations={(locations as OfficeLocation[]) ?? []}
             readOnly={!canWriteAdmin(employee.role)}
           />
         </Card>

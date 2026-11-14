@@ -85,11 +85,13 @@ export default async function ReportsPage({
                         checkInAccuracy={r.check_in_accuracy}
                         checkInDistanceMeters={r.check_in_distance_meters}
                         checkInIp={r.check_in_ip}
+                        checkInLocationName={r.check_in_location_name}
                         checkOutLatitude={r.check_out_latitude}
                         checkOutLongitude={r.check_out_longitude}
                         checkOutAccuracy={r.check_out_accuracy}
                         checkOutDistanceMeters={r.check_out_distance_meters}
                         checkOutIp={r.check_out_ip}
+                        checkOutLocationName={r.check_out_location_name}
                       />
                     </td>
                   </tr>

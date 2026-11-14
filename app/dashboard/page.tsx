@@ -16,11 +16,14 @@ export default async function DashboardPage() {
   redirectIfMustChangePassword(employee);
 
   const supabase = await createClient();
-  const { data: office } = await supabase
-    .from("office_settings")
-    .select("*")
-    .limit(1)
-    .maybeSingle();
+  const [{ data: office }, { data: locations }] = await Promise.all([
+    supabase.from("office_settings").select("*").limit(1).maybeSingle(),
+    supabase
+      .from("office_locations")
+      .select("*")
+      .eq("is_active", true)
+      .order("sort_order", { ascending: true }),
+  ]);
 
   const timezone = (office as OfficeSettings | null)?.timezone ?? "Asia/Karachi";
   const today = getTodayInTimezone(timezone);
@@ -40,6 +43,7 @@ export default async function DashboardPage() {
           employee={employee}
           today={attendance}
           office={(office as OfficeSettings | null) ?? null}
+          locations={locations ?? []}
         />
       </main>
     </div>

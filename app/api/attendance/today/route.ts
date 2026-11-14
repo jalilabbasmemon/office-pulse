@@ -13,11 +13,14 @@ export async function GET() {
     if (!employee) return apiError("UNAUTHORIZED", 401);
 
     const supabase = await createClient();
-    const { data: office } = await supabase
-      .from("office_settings")
-      .select("*")
-      .limit(1)
-      .maybeSingle();
+    const [{ data: office }, { data: locations }] = await Promise.all([
+      supabase.from("office_settings").select("*").limit(1).maybeSingle(),
+      supabase
+        .from("office_locations")
+        .select("*")
+        .eq("is_active", true)
+        .order("sort_order", { ascending: true }),
+    ]);
 
     const timezone = (office as OfficeSettings | null)?.timezone ?? "Asia/Karachi";
     const today = getTodayInTimezone(timezone);
@@ -29,8 +32,12 @@ export async function GET() {
       .eq("attendance_date", today)
       .maybeSingle();
 
+    const officeWithLocations = office
+      ? { ...(office as OfficeSettings), locations: locations ?? [] }
+      : null;
+
     return NextResponse.json(
-      { attendance, office, employee, today },
+      { attendance, office: officeWithLocations, locations: locations ?? [], employee, today },
       {
         headers: {
           "Cache-Control": "no-store, no-cache, must-revalidate",

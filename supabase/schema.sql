@@ -44,6 +44,20 @@ create table if not exists office_settings (
   updated_at timestamptz not null default now()
 );
 
+create table if not exists office_locations (
+  id uuid primary key default gen_random_uuid(),
+  name text not null,
+  address text,
+  latitude double precision not null,
+  longitude double precision not null,
+  allowed_radius_meters integer not null default 150
+    check (allowed_radius_meters between 10 and 5000),
+  is_active boolean not null default true,
+  sort_order integer not null default 0,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
 create table if not exists attendance (
   id uuid primary key default gen_random_uuid(),
   employee_id uuid not null references employees(id),
@@ -54,12 +68,14 @@ create table if not exists attendance (
   check_in_accuracy double precision,
   check_in_distance_meters double precision,
   check_in_ip text,
+  check_in_location_name text,
   check_out_time timestamptz,
   check_out_latitude double precision,
   check_out_longitude double precision,
   check_out_accuracy double precision,
   check_out_distance_meters double precision,
   check_out_ip text,
+  check_out_location_name text,
   total_work_minutes integer,
   is_late boolean not null default false,
   is_early_leave boolean not null default false,
@@ -104,6 +120,11 @@ create trigger employees_updated_at
 drop trigger if exists office_settings_updated_at on office_settings;
 create trigger office_settings_updated_at
   before update on office_settings
+  for each row execute function set_updated_at();
+
+drop trigger if exists office_locations_updated_at on office_locations;
+create trigger office_locations_updated_at
+  before update on office_locations
   for each row execute function set_updated_at();
 
 drop trigger if exists attendance_updated_at on attendance;
@@ -216,6 +237,18 @@ create policy "Authenticated can read office settings"
 
 create policy "Admins manage office settings"
   on office_settings for all
+  using (public.is_admin())
+  with check (public.is_admin());
+
+alter table office_locations enable row level security;
+
+create policy "Authenticated can read office locations"
+  on office_locations for select
+  to authenticated
+  using (true);
+
+create policy "Admins manage office locations"
+  on office_locations for all
   using (public.is_admin())
   with check (public.is_admin());
 

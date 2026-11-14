@@ -47,8 +47,8 @@ export async function GET(request: NextRequest) {
         officeIps: allowed,
         matched,
         tip: matched
-          ? "Your public IP matches the office network."
-          : "Connect to office Wi‑Fi, or ask admin to update Office public IP in Settings.",
+          ? "Office Wi‑Fi detected — GPS is optional for punch."
+          : "Other network — GPS must match an HQ / branch, or connect to office Wi‑Fi.",
       },
       {
         headers: {

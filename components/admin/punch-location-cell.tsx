@@ -4,6 +4,7 @@ type PunchCoords = {
   accuracy: number | null;
   distanceMeters: number | null;
   ip: string | null;
+  locationName?: string | null;
   label: string;
 };
 
@@ -17,6 +18,7 @@ function PunchBlock({
   accuracy,
   distanceMeters,
   ip,
+  locationName,
   label,
 }: PunchCoords) {
   const hasCoords =
@@ -25,7 +27,7 @@ function PunchBlock({
     Number.isFinite(latitude) &&
     Number.isFinite(longitude);
 
-  if (!hasCoords && !ip) {
+  if (!hasCoords && !ip && !locationName) {
     return (
       <p className="text-xs text-slate-400">
         {label}: —
@@ -38,6 +40,9 @@ function PunchBlock({
       <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
         {label}
       </p>
+      {locationName ? (
+        <p className="text-xs font-medium text-slate-800">{locationName}</p>
+      ) : null}
       {hasCoords ? (
         <a
           href={mapUrl(latitude, longitude)}
@@ -68,22 +73,26 @@ export function PunchLocationCell({
   checkInAccuracy,
   checkInDistanceMeters,
   checkInIp,
+  checkInLocationName,
   checkOutLatitude,
   checkOutLongitude,
   checkOutAccuracy,
   checkOutDistanceMeters,
   checkOutIp,
+  checkOutLocationName,
 }: {
   checkInLatitude: number | null;
   checkInLongitude: number | null;
   checkInAccuracy: number | null;
   checkInDistanceMeters: number | null;
   checkInIp: string | null;
+  checkInLocationName?: string | null;
   checkOutLatitude: number | null;
   checkOutLongitude: number | null;
   checkOutAccuracy: number | null;
   checkOutDistanceMeters: number | null;
   checkOutIp: string | null;
+  checkOutLocationName?: string | null;
 }) {
   return (
     <div className="min-w-[11rem] space-y-2">
@@ -94,6 +103,7 @@ export function PunchLocationCell({
         accuracy={checkInAccuracy}
         distanceMeters={checkInDistanceMeters}
         ip={checkInIp}
+        locationName={checkInLocationName}
       />
       <PunchBlock
         label="Check-out"
@@ -102,6 +112,7 @@ export function PunchLocationCell({
         accuracy={checkOutAccuracy}
         distanceMeters={checkOutDistanceMeters}
         ip={checkOutIp}
+        locationName={checkOutLocationName}
       />
     </div>
   );

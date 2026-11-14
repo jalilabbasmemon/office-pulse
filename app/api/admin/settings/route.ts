@@ -10,13 +10,18 @@ export async function GET() {
   try {
     await requireAdminAccess();
     const supabase = await createClient();
-    const { data, error } = await supabase
-      .from("office_settings")
-      .select("*")
-      .limit(1)
-      .maybeSingle();
+    const [{ data: settings, error }, { data: locations }] = await Promise.all([
+      supabase.from("office_settings").select("*").limit(1).maybeSingle(),
+      supabase
+        .from("office_locations")
+        .select("*")
+        .order("sort_order", { ascending: true }),
+    ]);
     if (error) throw error;
-    return NextResponse.json({ settings: data });
+    return NextResponse.json({
+      settings,
+      locations: locations ?? [],
+    });
   } catch (err) {
     const message = err instanceof Error ? err.message : "";
     if (message === "UNAUTHORIZED") return apiError("UNAUTHORIZED", 401);
@@ -42,16 +47,25 @@ export async function PATCH(request: NextRequest) {
       .limit(1)
       .maybeSingle();
 
+    const primary = parsed.data.locations[0];
+    const settingsPayload = {
+      office_name: parsed.data.office_name,
+      address: parsed.data.address ?? primary.address ?? null,
+      latitude: primary.latitude,
+      longitude: primary.longitude,
+      allowed_radius_meters: primary.allowed_radius_meters,
+      office_public_ip: parsed.data.office_public_ip ?? null,
+      allowed_office_ips: parsed.data.allowed_office_ips ?? [],
+      max_gps_accuracy_meters: parsed.data.max_gps_accuracy_meters,
+      allow_wifi_only_punch: parsed.data.allow_wifi_only_punch,
+      timezone: parsed.data.timezone,
+    };
+
     let settings;
     if (existing) {
       const { data, error } = await supabase
         .from("office_settings")
-        .update({
-          ...parsed.data,
-          address: parsed.data.address ?? null,
-          office_public_ip: parsed.data.office_public_ip ?? null,
-          allowed_office_ips: parsed.data.allowed_office_ips ?? [],
-        })
+        .update(settingsPayload)
         .eq("id", existing.id)
         .select("*")
         .single();
@@ -60,16 +74,65 @@ export async function PATCH(request: NextRequest) {
     } else {
       const { data, error } = await supabase
         .from("office_settings")
-        .insert({
-          ...parsed.data,
-          address: parsed.data.address ?? null,
-          office_public_ip: parsed.data.office_public_ip ?? null,
-          allowed_office_ips: parsed.data.allowed_office_ips ?? [],
-        })
+        .insert(settingsPayload)
         .select("*")
         .single();
       if (error) throw error;
       settings = data;
+    }
+
+    const { data: oldLocations } = await supabase
+      .from("office_locations")
+      .select("*")
+      .order("sort_order", { ascending: true });
+
+    const keepIds = parsed.data.locations
+      .map((l) => l.id)
+      .filter((id): id is string => Boolean(id));
+
+    if ((oldLocations ?? []).length > 0) {
+      const toDelete = (oldLocations ?? [])
+        .map((l) => l.id as string)
+        .filter((id) => !keepIds.includes(id));
+      if (toDelete.length > 0) {
+        const { error: delError } = await supabase
+          .from("office_locations")
+          .delete()
+          .in("id", toDelete);
+        if (delError) throw delError;
+      }
+    }
+
+    const savedLocations = [];
+    for (let i = 0; i < parsed.data.locations.length; i++) {
+      const loc = parsed.data.locations[i];
+      const row = {
+        name: loc.name,
+        address: loc.address ?? null,
+        latitude: loc.latitude,
+        longitude: loc.longitude,
+        allowed_radius_meters: loc.allowed_radius_meters,
+        is_active: loc.is_active,
+        sort_order: loc.sort_order ?? i,
+      };
+      if (loc.id) {
+        const { data, error } = await supabase
+          .from("office_locations")
+          .update(row)
+          .eq("id", loc.id)
+          .select("*")
+          .single();
+        if (error) throw error;
+        savedLocations.push(data);
+      } else {
+        const { data, error } = await supabase
+          .from("office_locations")
+          .insert(row)
+          .select("*")
+          .single();
+        if (error) throw error;
+        savedLocations.push(data);
+      }
     }
 
     await writeAuditLog({
@@ -77,12 +140,12 @@ export async function PATCH(request: NextRequest) {
       action: "OFFICE_SETTINGS_UPDATED",
       entityType: "office_settings",
       entityId: settings.id,
-      oldData: existing,
-      newData: settings,
+      oldData: { settings: existing, locations: oldLocations },
+      newData: { settings, locations: savedLocations },
       ipAddress: getRequestIp(request),
     });
 
-    return NextResponse.json({ settings });
+    return NextResponse.json({ settings, locations: savedLocations });
   } catch (err) {
     const message = err instanceof Error ? err.message : "";
     if (message === "UNAUTHORIZED") return apiError("UNAUTHORIZED", 401);

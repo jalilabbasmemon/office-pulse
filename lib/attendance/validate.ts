@@ -1,6 +1,6 @@
-import type { GpsPayload, OfficeSettings } from "@/types";
+import type { GpsPayload, OfficeLocation, OfficeSettings } from "@/types";
 import type { ApiErrorCode } from "@/types";
-import { calculateDistanceMeters } from "@/lib/location/haversine";
+import { matchOfficeLocation } from "@/lib/location/match-office";
 import {
   getAllowedOfficeIps,
   hasOfficeIpConfigured,
@@ -12,9 +12,11 @@ export type ValidationSuccess = {
   ok: true;
   distanceMeters: number | null;
   requestIp: string;
-  /** True when punch was accepted on office Wi‑Fi without a usable GPS fix. */
+  /** True when accepted via office Wi‑Fi without GPS. */
   wifiOnly: boolean;
   storeGps: boolean;
+  locationId: string | null;
+  locationName: string | null;
 };
 
 export type ValidationFailure = {
@@ -24,70 +26,41 @@ export type ValidationFailure = {
   allowedIps?: string[];
 };
 
-function wifiOnlyAllowed(office: OfficeSettings): boolean {
-  // Default on: Windows office PCs rarely have real GPS.
+function wifiSkipGpsAllowed(office: OfficeSettings): boolean {
   return office.allow_wifi_only_punch !== false;
 }
 
-function gpsLooksUsable(
-  gps: GpsPayload,
-  office: OfficeSettings
-): { ok: true; distanceMeters: number } | { ok: false } {
-  if (
-    typeof gps.accuracy !== "number" ||
-    Number.isNaN(gps.accuracy) ||
-    gps.accuracy > office.max_gps_accuracy_meters
-  ) {
-    return { ok: false };
-  }
+export { matchOfficeLocation };
 
-  const distanceMeters = calculateDistanceMeters(
-    gps.latitude,
-    gps.longitude,
-    office.latitude,
-    office.longitude
-  );
-
-  if (distanceMeters > office.allowed_radius_meters) {
-    return { ok: false };
-  }
-
-  return { ok: true, distanceMeters };
-}
-
+/**
+ * Hybrid punch rules:
+ * 1) On office Wi‑Fi (public IP match) → GPS not required.
+ * 2) On any other network → GPS must match one of the configured office locations.
+ */
 export function validateAttendanceLocation(
   gps: GpsPayload | null | undefined,
   office: OfficeSettings,
+  locations: OfficeLocation[],
   requestIp: string
 ): ValidationSuccess | ValidationFailure {
   const normalizedRequestIp = normalizeIp(requestIp);
+  const activeLocations = locations.filter((l) => l.is_active);
 
-  if (!hasOfficeIpConfigured(office.office_public_ip, office.allowed_office_ips)) {
+  if (activeLocations.length === 0) {
     return {
       ok: false,
       code: "OFFICE_NOT_CONFIGURED",
       requestIp: normalizedRequestIp,
-      allowedIps: [],
     };
   }
 
-  if (
-    !isOfficeNetwork(
+  const onOfficeWifi =
+    hasOfficeIpConfigured(office.office_public_ip, office.allowed_office_ips) &&
+    isOfficeNetwork(
       normalizedRequestIp,
       office.office_public_ip,
       office.allowed_office_ips
-    )
-  ) {
-    return {
-      ok: false,
-      code: "OFFICE_NETWORK_REQUIRED",
-      requestIp: normalizedRequestIp,
-      allowedIps: getAllowedOfficeIps(
-        office.office_public_ip,
-        office.allowed_office_ips
-      ),
-    };
-  }
+    );
 
   const hasCoords =
     gps != null &&
@@ -97,30 +70,47 @@ export function validateAttendanceLocation(
     !Number.isNaN(gps.longitude);
 
   if (hasCoords) {
-    const usable = gpsLooksUsable(gps, office);
-    if (usable.ok) {
+    const match = matchOfficeLocation(
+      gps,
+      activeLocations,
+      office.max_gps_accuracy_meters
+    );
+    if (match) {
       return {
         ok: true,
-        distanceMeters: usable.distanceMeters,
+        distanceMeters: match.distanceMeters,
         requestIp: normalizedRequestIp,
         wifiOnly: false,
         storeGps: true,
+        locationId: match.location.id,
+        locationName: match.location.name,
       };
     }
   }
 
-  if (wifiOnlyAllowed(office)) {
+  // Office Wi‑Fi path: skip GPS when enabled
+  if (onOfficeWifi && wifiSkipGpsAllowed(office)) {
     return {
       ok: true,
       distanceMeters: null,
       requestIp: normalizedRequestIp,
       wifiOnly: true,
       storeGps: false,
+      locationId: null,
+      locationName: "Office Wi‑Fi",
     };
   }
 
   if (!hasCoords) {
-    return { ok: false, code: "GPS_REQUIRED", requestIp: normalizedRequestIp };
+    return {
+      ok: false,
+      code: "GPS_REQUIRED",
+      requestIp: normalizedRequestIp,
+      allowedIps: getAllowedOfficeIps(
+        office.office_public_ip,
+        office.allowed_office_ips
+      ),
+    };
   }
 
   if (

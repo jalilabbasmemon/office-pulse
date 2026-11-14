@@ -11,17 +11,17 @@ const MESSAGES: Record<ApiErrorCode, string> = {
   NOT_CHECKED_IN:
     "You cannot check out because you have not checked in today.",
   OFFICE_NETWORK_REQUIRED:
-    "Office network not detected. Please connect to the office Wi-Fi and try again.",
+    "Office network not detected. Connect to office Wi‑Fi, or use GPS at an office location.",
   GPS_REQUIRED:
-    "Location access is required to check in. Please allow location access in your browser settings.",
+    "You are not on office Wi‑Fi, so location is required. Allow location and stand at an office / branch.",
   GPS_ACCURACY_TOO_LOW:
     "GPS accuracy is too low. Please move to an open area and try again.",
   OUTSIDE_OFFICE:
-    "You are outside the office location. Please connect to the office Wi-Fi and make sure you are physically inside the office.",
+    "You are outside every configured office location. Move inside a branch radius, or connect to office Wi‑Fi.",
   ATTENDANCE_NOT_FOUND: "Attendance record not found.",
   INVALID_ATTENDANCE_STATE: "This attendance action is not allowed right now.",
   OFFICE_NOT_CONFIGURED:
-    "Office public IP is not configured. Ask an admin to set Office public IP in Settings.",
+    "No office locations are configured. Ask an admin to add HQ / branch pins in Settings.",
   VALIDATION_ERROR: "Invalid request data.",
   SERVER_ERROR: "Something went wrong. Please try again.",
 };

@@ -11,17 +11,24 @@ import {
   isEarlyLeave,
   minutesUntilShiftEnd,
 } from "@/lib/attendance/timezone";
+import { matchOfficeLocation } from "@/lib/location/match-office";
 import {
   acquireLiveGps,
   LiveGpsError,
 } from "@/lib/location/live-gps";
 import { isIosDevice, isIosSafari } from "@/lib/platform/ios";
-import type { Attendance, Employee, OfficeSettings } from "@/types";
+import type {
+  Attendance,
+  Employee,
+  OfficeLocation,
+  OfficeSettings,
+} from "@/types";
 
 type Props = {
   employee: Employee;
   today: Attendance | null;
   office: OfficeSettings | null;
+  locations?: OfficeLocation[];
 };
 
 type GpsState = {
@@ -36,27 +43,22 @@ type NetworkState = {
   matched: boolean;
 } | null;
 
-function haversineMeters(
-  lat1: number,
-  lon1: number,
-  lat2: number,
-  lon2: number
-) {
-  const R = 6371000;
-  const toRad = (d: number) => (d * Math.PI) / 180;
-  const dLat = toRad(lat2 - lat1);
-  const dLon = toRad(lon2 - lon1);
-  const a =
-    Math.sin(dLat / 2) ** 2 +
-    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
-  return Math.round(R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)));
-}
-
-export function AttendanceCard({ employee, today, office: officeProp }: Props) {
+export function AttendanceCard({
+  employee,
+  today,
+  office: officeProp,
+  locations: locationsProp = [],
+}: Props) {
   const [office, setOffice] = useState<OfficeSettings | null>(officeProp);
+  const [locations, setLocations] = useState<OfficeLocation[]>(
+    locationsProp.length
+      ? locationsProp
+      : officeProp?.locations ?? []
+  );
   const [gps, setGps] = useState<GpsState>(null);
   const [gpsError, setGpsError] = useState<string | null>(null);
   const [gpsLoading, setGpsLoading] = useState(false);
+  const [matchedBranch, setMatchedBranch] = useState<string | null>(null);
   const [distance, setDistance] = useState<number | null>(null);
   const [network, setNetwork] = useState<NetworkState | null>(null);
   const [message, setMessage] = useState<string | null>(null);
@@ -73,23 +75,81 @@ export function AttendanceCard({ employee, today, office: officeProp }: Props) {
   const shift = employee.shifts;
   const timezone = office?.timezone ?? "Asia/Karachi";
 
-  const wifiOnlyAllowed = office?.allow_wifi_only_punch !== false;
-  const locationOk =
-    office != null &&
-    distance != null &&
-    distance <= office.allowed_radius_meters;
-  const accuracyOk =
-    office != null &&
-    gps != null &&
-    gps.accuracy <= office.max_gps_accuracy_meters;
-  const gpsOk = Boolean(gps && locationOk && accuracyOk);
+  const wifiSkipGps = office?.allow_wifi_only_punch !== false;
   const networkOk = Boolean(network?.matched);
-  const canPunch = Boolean(networkOk && (gpsOk || wifiOnlyAllowed));
+  const gpsMatch =
+    gps && office
+      ? matchOfficeLocation(gps, locations, office.max_gps_accuracy_meters)
+      : null;
+  const gpsOk = Boolean(gpsMatch);
+  const canPunchWifi = Boolean(networkOk && wifiSkipGps);
+  const canPunch = Boolean(canPunchWifi || gpsOk);
 
   const earlyNow = useMemo(() => {
     if (!shift) return false;
     return isEarlyLeave(new Date().toISOString(), shift.end_time, timezone);
   }, [shift, timezone, checkoutDialog]);
+
+  const applyGps = useCallback(
+    (next: GpsState, locs: OfficeLocation[], settings: OfficeSettings | null) => {
+      setGps(next);
+      if (!next || !settings) {
+        setMatchedBranch(null);
+        setDistance(null);
+        return;
+      }
+      const match = matchOfficeLocation(
+        next,
+        locs,
+        settings.max_gps_accuracy_meters
+      );
+      if (match) {
+        setMatchedBranch(match.location.name);
+        setDistance(match.distanceMeters);
+      } else {
+        setMatchedBranch(null);
+        // Show distance to nearest branch for feedback
+        let nearest: number | null = null;
+        for (const loc of locs.filter((l) => l.is_active)) {
+          const d = Math.round(
+            6371000 *
+              2 *
+              Math.atan2(
+                Math.sqrt(
+                  Math.sin(
+                    (((loc.latitude - next.latitude) * Math.PI) / 180) / 2
+                  ) **
+                    2 +
+                    Math.cos((next.latitude * Math.PI) / 180) *
+                      Math.cos((loc.latitude * Math.PI) / 180) *
+                      Math.sin(
+                        (((loc.longitude - next.longitude) * Math.PI) / 180) / 2
+                      ) **
+                        2
+                ),
+                Math.sqrt(
+                  1 -
+                    (Math.sin(
+                      (((loc.latitude - next.latitude) * Math.PI) / 180) / 2
+                    ) **
+                      2 +
+                      Math.cos((next.latitude * Math.PI) / 180) *
+                        Math.cos((loc.latitude * Math.PI) / 180) *
+                        Math.sin(
+                          (((loc.longitude - next.longitude) * Math.PI) / 180) /
+                            2
+                        ) **
+                          2)
+                )
+              )
+          );
+          if (nearest == null || d < nearest) nearest = d;
+        }
+        setDistance(nearest);
+      }
+    },
+    []
+  );
 
   const refreshNetwork = useCallback(async () => {
     try {
@@ -97,15 +157,17 @@ export function AttendanceCard({ employee, today, office: officeProp }: Props) {
         cache: "no-store",
         credentials: "same-origin",
       });
-      if (!res.ok) return;
+      if (!res.ok) return null;
       const data = await res.json();
-      setNetwork({
+      const next = {
         ip: data.ip ?? "",
         officeIps: data.officeIps ?? [],
         matched: Boolean(data.matched),
-      });
+      };
+      setNetwork(next);
+      return next;
     } catch {
-      // ignore transient errors; server still validates on punch
+      return null;
     }
   }, []);
 
@@ -118,6 +180,10 @@ export function AttendanceCard({ employee, today, office: officeProp }: Props) {
       if (!res.ok) return;
       const data = await res.json();
       if (data.office) setOffice(data.office as OfficeSettings);
+      if (data.locations) setLocations(data.locations as OfficeLocation[]);
+      else if (data.office?.locations) {
+        setLocations(data.office.locations as OfficeLocation[]);
+      }
       if (data.attendance) setLocalToday(data.attendance);
     } catch {
       // ignore
@@ -133,32 +199,26 @@ export function AttendanceCard({ employee, today, office: officeProp }: Props) {
         watchMs: 15000,
         rejectCoarse: false,
         onProgress: (r) => {
-          setGps({
-            latitude: r.latitude,
-            longitude: r.longitude,
-            accuracy: r.accuracy,
-          });
+          applyGps(
+            {
+              latitude: r.latitude,
+              longitude: r.longitude,
+              accuracy: r.accuracy,
+            },
+            locations,
+            office
+          );
         },
       });
-      const next = {
-        latitude: reading.latitude,
-        longitude: reading.longitude,
-        accuracy: reading.accuracy,
-      };
-      setGps(next);
-      setOffice((current) => {
-        if (current) {
-          setDistance(
-            haversineMeters(
-              next.latitude,
-              next.longitude,
-              current.latitude,
-              current.longitude
-            )
-          );
-        }
-        return current;
-      });
+      applyGps(
+        {
+          latitude: reading.latitude,
+          longitude: reading.longitude,
+          accuracy: reading.accuracy,
+        },
+        locations,
+        office
+      );
     } catch (e) {
       setGpsError(
         e instanceof LiveGpsError
@@ -168,13 +228,12 @@ export function AttendanceCard({ employee, today, office: officeProp }: Props) {
     } finally {
       setGpsLoading(false);
     }
-  }, []);
+  }, [applyGps, locations, office]);
 
   useEffect(() => {
     setIosHint(isIosDevice());
     void refreshOffice();
     void refreshNetwork();
-    // iOS Safari often blocks geolocation until a user tap — wait for that.
     if (!isIosDevice()) {
       void refreshGps();
     }
@@ -183,20 +242,12 @@ export function AttendanceCard({ employee, today, office: officeProp }: Props) {
       void refreshOffice();
     }, 15000);
     return () => window.clearInterval(id);
-  }, [refreshOffice, refreshNetwork, refreshGps]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount once
+  }, []);
 
   useEffect(() => {
-    if (office && gps) {
-      setDistance(
-        haversineMeters(
-          gps.latitude,
-          gps.longitude,
-          office.latitude,
-          office.longitude
-        )
-      );
-    }
-  }, [office, gps]);
+    if (gps) applyGps(gps, locations, office);
+  }, [locations, office, gps, applyGps]);
 
   function requireReadyForPunch(currentNetwork: NetworkState | null): boolean {
     setError(null);
@@ -206,37 +257,40 @@ export function AttendanceCard({ employee, today, office: officeProp }: Props) {
       setError("Office settings are not configured.");
       return false;
     }
-    if (!currentNetwork?.matched) {
-      const safariNote = isIosSafari()
-        ? " On iPhone Safari: Settings → Apple Account → iCloud → Private Relay → Off (or allow this site), and turn off Limit IP Address Tracking for this website."
-        : "";
-      setError(
-        `Office Wi‑Fi not detected. Your IP: ${currentNetwork?.ip || "unknown"}. Office allows: ${(currentNetwork?.officeIps ?? []).join(", ") || "not set"}.${safariNote}`
-      );
-      void refreshNetwork();
+    if (locations.filter((l) => l.is_active).length === 0) {
+      setError("No office locations configured. Ask an admin to add HQ / branches.");
       return false;
     }
-    if (wifiOnlyAllowed) {
+
+    const onWifi = Boolean(currentNetwork?.matched);
+    if (onWifi && wifiSkipGps) {
       return true;
     }
+
+    // Off Wi‑Fi (or Wi‑Fi skip disabled): GPS required at a branch
     if (!gps) {
       setError(
         isIosDevice()
-          ? "Tap “Enable location” first, allow Location for Safari, then try again."
-          : "Waiting for GPS. Please allow location access."
+          ? "Not on office Wi‑Fi — tap “Enable location”, allow Location, then try again."
+          : "Not on office Wi‑Fi — location is required. Allow GPS and stand at an office / branch."
       );
       return false;
     }
-    if (!accuracyOk) {
-      setError(
-        `GPS accuracy is too low (${Math.round(gps.accuracy)}m / max ${office.max_gps_accuracy_meters}m). Move to an open area.`
-      );
-      return false;
-    }
-    if (!locationOk) {
-      setError(
-        `You appear outside the office (${distance}m away). Stand inside the office radius.`
-      );
+    const match = matchOfficeLocation(
+      gps,
+      locations,
+      office.max_gps_accuracy_meters
+    );
+    if (!match) {
+      if (gps.accuracy > office.max_gps_accuracy_meters) {
+        setError(
+          `GPS accuracy is too low (${Math.round(gps.accuracy)}m / max ${office.max_gps_accuracy_meters}m). Move to an open area.`
+        );
+      } else {
+        setError(
+          `You are outside every office location${distance != null ? ` (nearest ~${distance}m)` : ""}. Move inside a branch radius, or connect to office Wi‑Fi.`
+        );
+      }
       return false;
     }
     return true;
@@ -246,26 +300,8 @@ export function AttendanceCard({ employee, today, office: officeProp }: Props) {
     setBusy(true);
     setError(null);
     try {
-      await Promise.all([refreshOffice(), refreshNetwork()]);
-      // Re-read network from a fresh call so we don't use stale closure
-      let latestNetwork = network;
-      try {
-        const res = await fetch(`/api/network/my-ip?ts=${Date.now()}`, {
-          cache: "no-store",
-          credentials: "same-origin",
-        });
-        if (res.ok) {
-          const data = await res.json();
-          latestNetwork = {
-            ip: data.ip ?? "",
-            officeIps: data.officeIps ?? [],
-            matched: Boolean(data.matched),
-          };
-          setNetwork(latestNetwork);
-        }
-      } catch {
-        // keep previous
-      }
+      await refreshOffice();
+      const latestNetwork = (await refreshNetwork()) ?? network;
 
       if (!requireReadyForPunch(latestNetwork)) {
         setCheckoutDialog(null);
@@ -288,7 +324,8 @@ export function AttendanceCard({ employee, today, office: officeProp }: Props) {
       }
       setLocalToday(data.attendance);
       setMessage(data.message);
-      setDistance(data.distanceMeters ?? distance);
+      if (data.distanceMeters != null) setDistance(data.distanceMeters);
+      if (data.locationName) setMatchedBranch(data.locationName);
       setCheckoutDialog(null);
     } finally {
       setBusy(false);
@@ -299,25 +336,8 @@ export function AttendanceCard({ employee, today, office: officeProp }: Props) {
     setBusy(true);
     setError(null);
     try {
-      await Promise.all([refreshOffice(), refreshNetwork()]);
-      let latestNetwork = network;
-      try {
-        const res = await fetch(`/api/network/my-ip?ts=${Date.now()}`, {
-          cache: "no-store",
-          credentials: "same-origin",
-        });
-        if (res.ok) {
-          const data = await res.json();
-          latestNetwork = {
-            ip: data.ip ?? "",
-            officeIps: data.officeIps ?? [],
-            matched: Boolean(data.matched),
-          };
-          setNetwork(latestNetwork);
-        }
-      } catch {
-        // keep
-      }
+      await refreshOffice();
+      const latestNetwork = (await refreshNetwork()) ?? network;
       if (!requireReadyForPunch(latestNetwork)) return;
       setCheckoutDialog(earlyNow ? "early" : "normal");
     } finally {
@@ -380,71 +400,77 @@ export function AttendanceCard({ employee, today, office: officeProp }: Props) {
 
       <div className="space-y-2 rounded-xl bg-slate-50 p-3 text-sm">
         <StatusRow
-          label="Location"
-          ok={Boolean(gpsOk || (wifiOnlyAllowed && networkOk))}
-          text={
-            gpsOk
-              ? `Office · ${distance}m`
-              : wifiOnlyAllowed && networkOk
-                ? "Using office Wi‑Fi (GPS optional)"
-                : gpsError
-                  ? "Permission needed"
-                  : distance == null
-                    ? wifiOnlyAllowed
-                      ? "Optional if Wi‑Fi OK"
-                      : gpsLoading
-                        ? "Checking…"
-                        : iosHint
-                          ? "Tap Enable location"
-                          : "Checking…"
-                    : `${distance}m away`
-          }
-        />
-        <StatusRow
-          label="GPS accuracy"
-          ok={Boolean(accuracyOk || (wifiOnlyAllowed && networkOk))}
-          text={
-            accuracyOk
-              ? `${Math.round(gps!.accuracy)}m / max ${office?.max_gps_accuracy_meters ?? "—"}m`
-              : wifiOnlyAllowed && networkOk
-                ? "Not required on office Wi‑Fi"
-                : gps
-                  ? `${Math.round(gps.accuracy)}m / max ${office?.max_gps_accuracy_meters ?? "—"}m`
-                  : gpsError
-                    ? "Unavailable"
-                    : gpsLoading
-                      ? "Checking…"
-                      : "—"
-          }
-        />
-        <StatusRow
           label="Network"
           ok={networkOk}
           text={
             !network
               ? "Checking…"
               : networkOk
-                ? `Office · ${network.ip}`
-                : `Blocked · ${network.ip || "unknown"}`
+                ? `Office Wi‑Fi · ${network.ip}`
+                : `Other network · ${network.ip || "unknown"}`
           }
         />
-        {network && !networkOk && (
+        <StatusRow
+          label="Location"
+          ok={Boolean(gpsOk || canPunchWifi)}
+          text={
+            gpsOk
+              ? `${matchedBranch ?? "Office"} · ${distance}m`
+              : canPunchWifi
+                ? "Not required on office Wi‑Fi"
+                : gpsError
+                  ? "Permission needed"
+                  : distance == null
+                    ? gpsLoading
+                      ? "Checking…"
+                      : iosHint
+                        ? "Tap Enable location"
+                        : "Checking…"
+                    : `Outside branches · ~${distance}m`
+          }
+        />
+        <StatusRow
+          label="GPS accuracy"
+          ok={Boolean(
+            (gpsOk && gps) ||
+              canPunchWifi ||
+              (gps != null &&
+                office != null &&
+                gps.accuracy <= office.max_gps_accuracy_meters)
+          )}
+          text={
+            canPunchWifi && !gpsOk
+              ? "Skipped on office Wi‑Fi"
+              : gps
+                ? `${Math.round(gps.accuracy)}m / max ${office?.max_gps_accuracy_meters ?? "—"}m`
+                : gpsError
+                  ? "Unavailable"
+                  : gpsLoading
+                    ? "Checking…"
+                    : "—"
+          }
+        />
+        {!networkOk && (
           <p className="text-xs text-amber-700">
-            Office allows:{" "}
-            {network.officeIps.length > 0
-              ? network.officeIps.join(", ")
-              : "not configured"}
-            {iosHint
-              ? ". Safari tip: turn off iCloud Private Relay / Limit IP Address Tracking for this site, stay on office Wi‑Fi, then Refresh."
+            Off office Wi‑Fi: GPS must match HQ / a branch
+            {locations.length > 0
+              ? ` (${locations
+                  .filter((l) => l.is_active)
+                  .map((l) => l.name)
+                  .join(", ")})`
+              : ""}
+            .
+            {isIosSafari()
+              ? " Safari tip: allow Location; Private Relay can also change your IP."
               : ""}
           </p>
         )}
-        {gpsError && (
+        {gpsError && !canPunchWifi && (
           <p className="text-xs text-amber-700">{gpsError}</p>
         )}
       </div>
 
-      {iosHint && !gps && !wifiOnlyAllowed && (
+      {iosHint && !gps && !canPunchWifi && (
         <Button
           type="button"
           className="w-full"
@@ -457,9 +483,8 @@ export function AttendanceCard({ employee, today, office: officeProp }: Props) {
 
       {!canPunch && (
         <p className="rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-800">
-          {wifiOnlyAllowed
-            ? "Punch requires office Wi‑Fi (matching public IP). On iPhone Safari, also disable Private Relay, then tap Refresh."
-            : "Punch requires matching office public IP and GPS inside the radius. Tap Refresh after fixing Wi‑Fi / location."}
+          Punch on <strong>office Wi‑Fi</strong> (no GPS needed), or on any
+          network while GPS shows you inside an office / branch.
         </p>
       )}
 
@@ -507,11 +532,11 @@ export function AttendanceCard({ employee, today, office: officeProp }: Props) {
           onClick={() => {
             void refreshOffice();
             void refreshNetwork();
-            void refreshGps();
+            if (!canPunchWifi) void refreshGps();
           }}
           disabled={busy || gpsLoading}
         >
-          Refresh location & network
+          Refresh
         </Button>
       </div>
 
@@ -522,7 +547,7 @@ export function AttendanceCard({ employee, today, office: officeProp }: Props) {
         title="Leaving before shift end?"
         description={
           shift
-            ? `Your shift ends at ${formatShiftClock(shift.end_time)}. About ${Math.max(minutesLeft, 0)} minute(s) remain. Early check-out will be recorded. Office Wi‑Fi will be verified again.`
+            ? `Your shift ends at ${formatShiftClock(shift.end_time)}. About ${Math.max(minutesLeft, 0)} minute(s) remain. Early check-out will be recorded.`
             : "You are checking out early. Continue only if you mean to leave."
         }
         confirmLabel="Yes, check out early"
@@ -535,7 +560,7 @@ export function AttendanceCard({ employee, today, office: officeProp }: Props) {
         open={checkoutDialog === "normal"}
         pending={busy}
         title="Confirm check-out"
-        description="Are you sure you want to check out for today? This cannot be undone by you. Office Wi‑Fi will be verified on the server."
+        description="Are you sure you want to check out for today? This cannot be undone by you."
         confirmLabel="Yes, check out"
         cancelLabel="Cancel"
         onCancel={() => setCheckoutDialog(null)}

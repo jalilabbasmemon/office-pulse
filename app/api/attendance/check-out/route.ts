@@ -10,7 +10,7 @@ import {
 import { validateAttendanceLocation } from "@/lib/attendance/validate";
 import { getRequestIp } from "@/lib/network/ip";
 import { gpsSchema } from "@/validations";
-import type { OfficeSettings, Shift } from "@/types";
+import type { OfficeLocation, OfficeSettings, Shift } from "@/types";
 
 export async function POST(request: NextRequest) {
   try {
@@ -23,25 +23,29 @@ export async function POST(request: NextRequest) {
     const gps = parsed.success ? parsed.data : null;
 
     const supabase = await createClient();
-    const { data: office, error: officeError } = await supabase
-      .from("office_settings")
-      .select("*")
-      .limit(1)
-      .maybeSingle();
+    const [{ data: office, error: officeError }, { data: locations }] =
+      await Promise.all([
+        supabase.from("office_settings").select("*").limit(1).maybeSingle(),
+        supabase
+          .from("office_locations")
+          .select("*")
+          .eq("is_active", true)
+          .order("sort_order", { ascending: true }),
+      ]);
 
     if (officeError || !office) return apiError("OFFICE_NOT_CONFIGURED", 400);
     const settings = office as OfficeSettings;
     const today = getTodayInTimezone(settings.timezone);
     const requestIp = getRequestIp(request);
 
-    // Office Wi‑Fi required; GPS optional when allow_wifi_only_punch is on
-    const validation = validateAttendanceLocation(gps, settings, requestIp);
+    const validation = validateAttendanceLocation(
+      gps,
+      settings,
+      (locations as OfficeLocation[]) ?? [],
+      requestIp
+    );
     if (!validation.ok) {
-      const status =
-        validation.code === "OFFICE_NETWORK_REQUIRED" ||
-        validation.code === "OUTSIDE_OFFICE"
-          ? 403
-          : 400;
+      const status = validation.code === "OUTSIDE_OFFICE" ? 403 : 400;
       const { networkValidationMessage } = await import(
         "@/lib/attendance/network-error"
       );
@@ -82,6 +86,7 @@ export async function POST(request: NextRequest) {
         check_out_accuracy: validation.storeGps && gps ? gps.accuracy : null,
         check_out_distance_meters: validation.distanceMeters,
         check_out_ip: validation.requestIp,
+        check_out_location_name: validation.locationName,
         total_work_minutes: total,
         is_early_leave: early,
         status: "CLOSED",
@@ -94,16 +99,21 @@ export async function POST(request: NextRequest) {
     if (error) throw error;
     if (!attendance) return apiError("ALREADY_CHECKED_OUT", 409);
 
+    const where =
+      validation.locationName != null
+        ? ` at ${validation.locationName}`
+        : "";
     const wifiNote = validation.wifiOnly
       ? " Verified via office Wi‑Fi."
       : "";
 
     return NextResponse.json({
       message: early
-        ? `Checked out early. Worked ${Math.floor(total / 60)}h ${total % 60}m.${wifiNote}`
-        : `Check-out successful. Worked ${Math.floor(total / 60)}h ${total % 60}m.${wifiNote}`,
+        ? `Checked out early${where}. Worked ${Math.floor(total / 60)}h ${total % 60}m.${wifiNote}`
+        : `Check-out successful${where}. Worked ${Math.floor(total / 60)}h ${total % 60}m.${wifiNote}`,
       attendance,
       distanceMeters: validation.distanceMeters,
+      locationName: validation.locationName,
       isEarlyLeave: early,
       networkOk: true,
       locationOk: true,

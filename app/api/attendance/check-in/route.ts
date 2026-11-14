@@ -6,7 +6,7 @@ import { getTodayInTimezone, isLate } from "@/lib/attendance/timezone";
 import { validateAttendanceLocation } from "@/lib/attendance/validate";
 import { getRequestIp } from "@/lib/network/ip";
 import { gpsSchema } from "@/validations";
-import type { OfficeSettings, Shift } from "@/types";
+import type { OfficeLocation, OfficeSettings, Shift } from "@/types";
 
 export async function POST(request: NextRequest) {
   try {
@@ -19,25 +19,29 @@ export async function POST(request: NextRequest) {
     const gps = parsed.success ? parsed.data : null;
 
     const supabase = await createClient();
-    const { data: office, error: officeError } = await supabase
-      .from("office_settings")
-      .select("*")
-      .limit(1)
-      .maybeSingle();
+    const [{ data: office, error: officeError }, { data: locations }] =
+      await Promise.all([
+        supabase.from("office_settings").select("*").limit(1).maybeSingle(),
+        supabase
+          .from("office_locations")
+          .select("*")
+          .eq("is_active", true)
+          .order("sort_order", { ascending: true }),
+      ]);
 
     if (officeError || !office) return apiError("OFFICE_NOT_CONFIGURED", 400);
     const settings = office as OfficeSettings;
     const today = getTodayInTimezone(settings.timezone);
     const requestIp = getRequestIp(request);
 
-    // Office Wi‑Fi required; GPS optional when allow_wifi_only_punch is on
-    const validation = validateAttendanceLocation(gps, settings, requestIp);
+    const validation = validateAttendanceLocation(
+      gps,
+      settings,
+      (locations as OfficeLocation[]) ?? [],
+      requestIp
+    );
     if (!validation.ok) {
-      const status =
-        validation.code === "OFFICE_NETWORK_REQUIRED" ||
-        validation.code === "OUTSIDE_OFFICE"
-          ? 403
-          : 400;
+      const status = validation.code === "OUTSIDE_OFFICE" ? 403 : 400;
       const { networkValidationMessage } = await import(
         "@/lib/attendance/network-error"
       );
@@ -83,6 +87,7 @@ export async function POST(request: NextRequest) {
       check_in_accuracy: validation.storeGps && gps ? gps.accuracy : null,
       check_in_distance_meters: validation.distanceMeters,
       check_in_ip: validation.requestIp,
+      check_in_location_name: validation.locationName,
       is_late: late,
       status: "OPEN",
     };
@@ -110,19 +115,24 @@ export async function POST(request: NextRequest) {
       attendance = data;
     }
 
+    const where =
+      validation.locationName != null
+        ? ` at ${validation.locationName}`
+        : "";
     const distanceLabel =
       validation.distanceMeters != null
         ? ` Distance: ${validation.distanceMeters}m.`
         : validation.wifiOnly
-          ? " Verified via office Wi‑Fi (laptop GPS not required)."
+          ? " Verified via office Wi‑Fi (GPS not required)."
           : "";
 
     return NextResponse.json({
       message: late
-        ? `Checked in late.${distanceLabel}`
-        : `Check-in successful.${distanceLabel}`,
+        ? `Checked in late${where}.${distanceLabel}`
+        : `Check-in successful${where}.${distanceLabel}`,
       attendance,
       distanceMeters: validation.distanceMeters,
+      locationName: validation.locationName,
       isLate: late,
       networkOk: true,
       locationOk: true,

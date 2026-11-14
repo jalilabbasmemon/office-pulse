@@ -70,6 +70,7 @@ export function AttendanceCard({ employee, today, office: officeProp }: Props) {
   const shift = employee.shifts;
   const timezone = office?.timezone ?? "Asia/Karachi";
 
+  const wifiOnlyAllowed = office?.allow_wifi_only_punch !== false;
   const locationOk =
     office != null &&
     distance != null &&
@@ -78,8 +79,9 @@ export function AttendanceCard({ employee, today, office: officeProp }: Props) {
     office != null &&
     gps != null &&
     gps.accuracy <= office.max_gps_accuracy_meters;
+  const gpsOk = Boolean(gps && locationOk && accuracyOk);
   const networkOk = Boolean(network?.matched);
-  const canPunch = Boolean(gps && locationOk && accuracyOk && networkOk);
+  const canPunch = Boolean(networkOk && (gpsOk || wifiOnlyAllowed));
 
   const earlyNow = useMemo(() => {
     if (!shift) return false;
@@ -194,11 +196,6 @@ export function AttendanceCard({ employee, today, office: officeProp }: Props) {
     setError(null);
     setMessage(null);
 
-    if (!gps) {
-      setError("Waiting for GPS. Please allow location access.");
-      refreshGps();
-      return false;
-    }
     if (!office) {
       setError("Office settings are not configured.");
       return false;
@@ -208,6 +205,14 @@ export function AttendanceCard({ employee, today, office: officeProp }: Props) {
         `Office Wi‑Fi not detected. Your IP: ${network?.ip || "unknown"}. Office allows: ${(network?.officeIps ?? []).join(", ") || "not set"}.`
       );
       void refreshNetwork();
+      return false;
+    }
+    if (wifiOnlyAllowed) {
+      return true;
+    }
+    if (!gps) {
+      setError("Waiting for GPS. Please allow location access.");
+      refreshGps();
       return false;
     }
     if (!accuracyOk) {
@@ -228,7 +233,7 @@ export function AttendanceCard({ employee, today, office: officeProp }: Props) {
   function punch(action: "check-in" | "check-out") {
     startTransition(async () => {
       await Promise.all([refreshOffice(), refreshNetwork()]);
-      if (!requireReadyForPunch() || !gps) {
+      if (!requireReadyForPunch()) {
         setCheckoutDialog(null);
         return;
       }
@@ -237,7 +242,7 @@ export function AttendanceCard({ employee, today, office: officeProp }: Props) {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         cache: "no-store",
-        body: JSON.stringify(gps),
+        body: JSON.stringify(gps ?? {}),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -317,26 +322,34 @@ export function AttendanceCard({ employee, today, office: officeProp }: Props) {
       <div className="space-y-2 rounded-xl bg-slate-50 p-3 text-sm">
         <StatusRow
           label="Location"
-          ok={Boolean(locationOk)}
+          ok={Boolean(gpsOk || (wifiOnlyAllowed && networkOk))}
           text={
-            gpsError
-              ? "Permission needed"
-              : distance == null
-                ? "Checking…"
-                : locationOk
-                  ? `Office · ${distance}m`
-                  : `${distance}m away`
+            gpsOk
+              ? `Office · ${distance}m`
+              : wifiOnlyAllowed && networkOk
+                ? "Using office Wi‑Fi (laptop GPS skipped)"
+                : gpsError
+                  ? "Permission needed"
+                  : distance == null
+                    ? wifiOnlyAllowed
+                      ? "Optional on this PC"
+                      : "Checking…"
+                    : `${distance}m away`
           }
         />
         <StatusRow
           label="GPS accuracy"
-          ok={Boolean(accuracyOk)}
+          ok={Boolean(accuracyOk || (wifiOnlyAllowed && networkOk))}
           text={
-            gps
-              ? `${Math.round(gps.accuracy)}m / max ${office?.max_gps_accuracy_meters ?? "—"}m`
-              : gpsError
-                ? "Unavailable"
-                : "Checking…"
+            accuracyOk
+              ? `${Math.round(gps!.accuracy)}m / max ${office?.max_gps_accuracy_meters ?? "—"}m`
+              : wifiOnlyAllowed && networkOk
+                ? "Not required on office Wi‑Fi"
+                : gps
+                  ? `${Math.round(gps.accuracy)}m / max ${office?.max_gps_accuracy_meters ?? "—"}m`
+                  : gpsError
+                    ? "Unavailable"
+                    : "Checking…"
           }
         />
         <StatusRow
@@ -360,10 +373,11 @@ export function AttendanceCard({ employee, today, office: officeProp }: Props) {
         )}
       </div>
 
-      {!canPunch && !gpsError && (
+      {!canPunch && (
         <p className="rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-800">
-          Punch requires matching office public IP and GPS inside the radius.
-          Tap Refresh if you just changed Wi‑Fi or Settings.
+          {wifiOnlyAllowed
+            ? "Punch requires office Wi‑Fi (matching public IP). Connect to office Wi‑Fi, then tap Refresh."
+            : "Punch requires matching office public IP and GPS inside the radius. Tap Refresh if you just changed Wi‑Fi or Settings."}
         </p>
       )}
 
@@ -422,7 +436,7 @@ export function AttendanceCard({ employee, today, office: officeProp }: Props) {
         title="Leaving before shift end?"
         description={
           shift
-            ? `Your shift ends at ${formatShiftClock(shift.end_time)}. About ${Math.max(minutesLeft, 0)} minute(s) remain. Early check-out will be recorded. Office Wi‑Fi and GPS will be verified again.`
+            ? `Your shift ends at ${formatShiftClock(shift.end_time)}. About ${Math.max(minutesLeft, 0)} minute(s) remain. Early check-out will be recorded. Office Wi‑Fi will be verified again.`
             : "You are checking out early. Continue only if you mean to leave."
         }
         confirmLabel="Yes, check out early"
@@ -435,7 +449,7 @@ export function AttendanceCard({ employee, today, office: officeProp }: Props) {
         open={checkoutDialog === "normal"}
         pending={pending}
         title="Confirm check-out"
-        description="Are you sure you want to check out for today? This cannot be undone by you. Office Wi‑Fi and GPS will be verified on the server."
+        description="Are you sure you want to check out for today? This cannot be undone by you. Office Wi‑Fi will be verified on the server."
         confirmLabel="Yes, check out"
         cancelLabel="Cancel"
         onCancel={() => setCheckoutDialog(null)}

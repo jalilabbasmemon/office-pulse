@@ -46,6 +46,7 @@ export function OfficeSettingsForm({
     office_public_ip: settings?.office_public_ip ?? "",
     allowed_office_ips: (settings?.allowed_office_ips ?? []).join(", "),
     max_gps_accuracy_meters: settings?.max_gps_accuracy_meters ?? 100,
+    allow_wifi_only_punch: settings?.allow_wifi_only_punch ?? true,
     timezone: settings?.timezone ?? "Asia/Karachi",
   });
 
@@ -123,6 +124,7 @@ export function OfficeSettingsForm({
           .map((s) => s.trim())
           .filter(Boolean),
         max_gps_accuracy_meters: Number(form.max_gps_accuracy_meters),
+        allow_wifi_only_punch: Boolean(form.allow_wifi_only_punch),
         timezone: form.timezone,
       };
       const res = await fetch("/api/admin/settings", {
@@ -277,11 +279,31 @@ export function OfficeSettingsForm({
             }
           />
           <p className="mt-1 text-xs text-slate-500">
-            Phones are usually 5–50m. Desktop browsers often report thousands of
-            meters and will fail — use a phone for punch.
+            Phones are usually 5–50m. Desktop browsers often report a city
+            (e.g. Islamabad) — keep Wi‑Fi-only punch on for office laptops.
           </p>
         </div>
       </div>
+
+      <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3">
+        <input
+          type="checkbox"
+          className="mt-1 h-4 w-4 accent-teal-700"
+          checked={form.allow_wifi_only_punch}
+          onChange={(e) => update("allow_wifi_only_punch", e.target.checked)}
+        />
+        <span>
+          <span className="block text-sm font-medium text-slate-900">
+            Allow punch on office Wi‑Fi without GPS
+          </span>
+          <span className="mt-0.5 block text-xs text-slate-500">
+            Recommended for Windows office PCs. When the public IP matches,
+            check-in/out works even if the browser shows the wrong city.
+            Phones with good GPS still use the map radius when available.
+          </span>
+        </span>
+      </label>
+
       <div>
         <div className="mb-1.5 flex items-center justify-between gap-2">
           <Label htmlFor="ip" className="mb-0">

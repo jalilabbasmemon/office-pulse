@@ -14,9 +14,9 @@ export async function POST(request: NextRequest) {
     if (!employee) return apiError("UNAUTHORIZED", 401);
     if (employee.status !== "ACTIVE") return apiError("EMPLOYEE_INACTIVE", 403);
 
-    const body = await request.json();
+    const body = await request.json().catch(() => ({}));
     const parsed = gpsSchema.safeParse(body);
-    if (!parsed.success) return apiError("GPS_REQUIRED", 400);
+    const gps = parsed.success ? parsed.data : null;
 
     const supabase = await createClient();
     const { data: office, error: officeError } = await supabase
@@ -30,12 +30,8 @@ export async function POST(request: NextRequest) {
     const today = getTodayInTimezone(settings.timezone);
     const requestIp = getRequestIp(request);
 
-    // Same Wi‑Fi (public IP) + GPS validation as check-out
-    const validation = validateAttendanceLocation(
-      parsed.data,
-      settings,
-      requestIp
-    );
+    // Office Wi‑Fi required; GPS optional when allow_wifi_only_punch is on
+    const validation = validateAttendanceLocation(gps, settings, requestIp);
     if (!validation.ok) {
       const status =
         validation.code === "OFFICE_NETWORK_REQUIRED" ||
@@ -82,9 +78,9 @@ export async function POST(request: NextRequest) {
       employee_id: employee.id,
       attendance_date: today,
       check_in_time: now,
-      check_in_latitude: parsed.data.latitude,
-      check_in_longitude: parsed.data.longitude,
-      check_in_accuracy: parsed.data.accuracy,
+      check_in_latitude: validation.storeGps && gps ? gps.latitude : null,
+      check_in_longitude: validation.storeGps && gps ? gps.longitude : null,
+      check_in_accuracy: validation.storeGps && gps ? gps.accuracy : null,
       check_in_distance_meters: validation.distanceMeters,
       check_in_ip: validation.requestIp,
       is_late: late,
@@ -114,15 +110,23 @@ export async function POST(request: NextRequest) {
       attendance = data;
     }
 
+    const distanceLabel =
+      validation.distanceMeters != null
+        ? ` Distance: ${validation.distanceMeters}m.`
+        : validation.wifiOnly
+          ? " Verified via office Wi‑Fi (laptop GPS not required)."
+          : "";
+
     return NextResponse.json({
       message: late
-        ? `Checked in late. Distance: ${validation.distanceMeters}m.`
-        : `Check-in successful. Distance: ${validation.distanceMeters} meters.`,
+        ? `Checked in late.${distanceLabel}`
+        : `Check-in successful.${distanceLabel}`,
       attendance,
       distanceMeters: validation.distanceMeters,
       isLate: late,
       networkOk: true,
       locationOk: true,
+      wifiOnly: validation.wifiOnly,
     });
   } catch (err) {
     console.error("check-in error", err);

@@ -38,6 +38,7 @@ create table if not exists office_settings (
   office_public_ip text,
   allowed_office_ips text[] not null default '{}',
   max_gps_accuracy_meters integer not null default 100,
+  allow_wifi_only_punch boolean not null default true,
   timezone text not null default 'Asia/Karachi',
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()

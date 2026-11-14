@@ -10,8 +10,11 @@ import {
 
 export type ValidationSuccess = {
   ok: true;
-  distanceMeters: number;
+  distanceMeters: number | null;
   requestIp: string;
+  /** True when punch was accepted on office Wi‑Fi without a usable GPS fix. */
+  wifiOnly: boolean;
+  storeGps: boolean;
 };
 
 export type ValidationFailure = {
@@ -20,6 +23,37 @@ export type ValidationFailure = {
   requestIp: string;
   allowedIps?: string[];
 };
+
+function wifiOnlyAllowed(office: OfficeSettings): boolean {
+  // Default on: Windows office PCs rarely have real GPS.
+  return office.allow_wifi_only_punch !== false;
+}
+
+function gpsLooksUsable(
+  gps: GpsPayload,
+  office: OfficeSettings
+): { ok: true; distanceMeters: number } | { ok: false } {
+  if (
+    typeof gps.accuracy !== "number" ||
+    Number.isNaN(gps.accuracy) ||
+    gps.accuracy > office.max_gps_accuracy_meters
+  ) {
+    return { ok: false };
+  }
+
+  const distanceMeters = calculateDistanceMeters(
+    gps.latitude,
+    gps.longitude,
+    office.latitude,
+    office.longitude
+  );
+
+  if (distanceMeters > office.allowed_radius_meters) {
+    return { ok: false };
+  }
+
+  return { ok: true, distanceMeters };
+}
 
 export function validateAttendanceLocation(
   gps: GpsPayload | null | undefined,
@@ -55,20 +89,44 @@ export function validateAttendanceLocation(
     };
   }
 
-  if (
-    gps == null ||
-    typeof gps.latitude !== "number" ||
-    typeof gps.longitude !== "number" ||
-    Number.isNaN(gps.latitude) ||
-    Number.isNaN(gps.longitude)
-  ) {
+  const hasCoords =
+    gps != null &&
+    typeof gps.latitude === "number" &&
+    typeof gps.longitude === "number" &&
+    !Number.isNaN(gps.latitude) &&
+    !Number.isNaN(gps.longitude);
+
+  if (hasCoords) {
+    const usable = gpsLooksUsable(gps, office);
+    if (usable.ok) {
+      return {
+        ok: true,
+        distanceMeters: usable.distanceMeters,
+        requestIp: normalizedRequestIp,
+        wifiOnly: false,
+        storeGps: true,
+      };
+    }
+  }
+
+  if (wifiOnlyAllowed(office)) {
+    return {
+      ok: true,
+      distanceMeters: null,
+      requestIp: normalizedRequestIp,
+      wifiOnly: true,
+      storeGps: false,
+    };
+  }
+
+  if (!hasCoords) {
     return { ok: false, code: "GPS_REQUIRED", requestIp: normalizedRequestIp };
   }
 
   if (
-    typeof gps.accuracy !== "number" ||
-    Number.isNaN(gps.accuracy) ||
-    gps.accuracy > office.max_gps_accuracy_meters
+    typeof gps!.accuracy !== "number" ||
+    Number.isNaN(gps!.accuracy) ||
+    gps!.accuracy > office.max_gps_accuracy_meters
   ) {
     return {
       ok: false,
@@ -77,24 +135,9 @@ export function validateAttendanceLocation(
     };
   }
 
-  const distanceMeters = calculateDistanceMeters(
-    gps.latitude,
-    gps.longitude,
-    office.latitude,
-    office.longitude
-  );
-
-  if (distanceMeters > office.allowed_radius_meters) {
-    return {
-      ok: false,
-      code: "OUTSIDE_OFFICE",
-      requestIp: normalizedRequestIp,
-    };
-  }
-
   return {
-    ok: true,
-    distanceMeters,
+    ok: false,
+    code: "OUTSIDE_OFFICE",
     requestIp: normalizedRequestIp,
   };
 }

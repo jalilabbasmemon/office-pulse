@@ -71,6 +71,7 @@ export const officeSettingsSchema = z.object({
   office_public_ip: z.string().max(45).nullable().optional(),
   allowed_office_ips: z.array(z.string().max(45)).optional(),
   max_gps_accuracy_meters: z.number().int().min(5).max(50000),
+  allow_wifi_only_punch: z.boolean().default(true),
   timezone: z.string().min(3).max(64).default("Asia/Karachi"),
 });
 

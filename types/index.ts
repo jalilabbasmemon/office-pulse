@@ -39,6 +39,8 @@ export type OfficeSettings = {
   office_public_ip: string | null;
   allowed_office_ips: string[];
   max_gps_accuracy_meters: number;
+  /** When true, office Wi‑Fi (public IP) alone is enough to punch; GPS optional. */
+  allow_wifi_only_punch: boolean;
   timezone: string;
   created_at: string;
   updated_at: string;

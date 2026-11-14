@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { MonthFilter } from "@/components/ui/date-filters";
 import { PunchLocationCell } from "@/components/admin/punch-location-cell";
 import { formatMinutes, formatShortDate, formatTime } from "@/lib/utils";
+import type { OfficeLocation } from "@/types";
 
 export default async function ReportsPage({
   searchParams,
@@ -26,12 +27,19 @@ export default async function ReportsPage({
   const end = `${year}-${String(mon).padStart(2, "0")}-${endDate}`;
 
   const supabase = await createClient();
-  const { data: records } = await supabase
-    .from("attendance")
-    .select("*, employees(name, employee_id)")
-    .gte("attendance_date", start)
-    .lte("attendance_date", end)
-    .order("attendance_date", { ascending: false });
+  const [{ data: records }, { data: locations }] = await Promise.all([
+    supabase
+      .from("attendance")
+      .select("*, employees(name, employee_id)")
+      .gte("attendance_date", start)
+      .lte("attendance_date", end)
+      .order("attendance_date", { ascending: false }),
+    supabase
+      .from("office_locations")
+      .select("*")
+      .order("sort_order", { ascending: true }),
+  ]);
+  const officeLocations = (locations as OfficeLocation[]) ?? [];
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -90,16 +98,15 @@ export default async function ReportsPage({
                       <PunchLocationCell
                         checkInLatitude={r.check_in_latitude}
                         checkInLongitude={r.check_in_longitude}
-                        checkInAccuracy={r.check_in_accuracy}
                         checkInDistanceMeters={r.check_in_distance_meters}
                         checkInIp={r.check_in_ip}
                         checkInLocationName={r.check_in_location_name}
                         checkOutLatitude={r.check_out_latitude}
                         checkOutLongitude={r.check_out_longitude}
-                        checkOutAccuracy={r.check_out_accuracy}
                         checkOutDistanceMeters={r.check_out_distance_meters}
                         checkOutIp={r.check_out_ip}
                         checkOutLocationName={r.check_out_location_name}
+                        locations={officeLocations}
                       />
                     </td>
                   </tr>

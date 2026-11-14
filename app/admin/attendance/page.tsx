@@ -9,7 +9,7 @@ import { DateFilter } from "@/components/ui/date-filters";
 import { AttendanceCorrectForm } from "@/components/admin/attendance-correct-form";
 import { PunchLocationCell } from "@/components/admin/punch-location-cell";
 import { formatMinutes, formatTime } from "@/lib/utils";
-import type { OfficeSettings } from "@/types";
+import type { OfficeLocation, OfficeSettings } from "@/types";
 
 export default async function AdminAttendancePage({
   searchParams,
@@ -23,13 +23,16 @@ export default async function AdminAttendancePage({
   const canWrite = canWriteAdmin(employee.role);
   const params = await searchParams;
   const supabase = await createClient();
-  const { data: office } = await supabase
-    .from("office_settings")
-    .select("timezone")
-    .limit(1)
-    .maybeSingle();
+  const [{ data: office }, { data: locations }] = await Promise.all([
+    supabase.from("office_settings").select("timezone").limit(1).maybeSingle(),
+    supabase
+      .from("office_locations")
+      .select("*")
+      .order("sort_order", { ascending: true }),
+  ]);
   const timezone = (office as OfficeSettings | null)?.timezone ?? "Asia/Karachi";
   const date = params.date ?? getTodayInTimezone(timezone);
+  const officeLocations = (locations as OfficeLocation[]) ?? [];
 
   const { data: records } = await supabase
     .from("attendance")
@@ -102,16 +105,15 @@ export default async function AdminAttendancePage({
                       <PunchLocationCell
                         checkInLatitude={r.check_in_latitude}
                         checkInLongitude={r.check_in_longitude}
-                        checkInAccuracy={r.check_in_accuracy}
                         checkInDistanceMeters={r.check_in_distance_meters}
                         checkInIp={r.check_in_ip}
                         checkInLocationName={r.check_in_location_name}
                         checkOutLatitude={r.check_out_latitude}
                         checkOutLongitude={r.check_out_longitude}
-                        checkOutAccuracy={r.check_out_accuracy}
                         checkOutDistanceMeters={r.check_out_distance_meters}
                         checkOutIp={r.check_out_ip}
                         checkOutLocationName={r.check_out_location_name}
+                        locations={officeLocations}
                       />
                     </td>
                     {canWrite ? (

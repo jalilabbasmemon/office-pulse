@@ -42,7 +42,7 @@ export default async function AdminAttendancePage({
   return (
     <div className="min-h-screen bg-slate-50">
       <AppNav role={employee.role} name={employee.name} />
-      <main className="mx-auto max-w-6xl space-y-4 px-4 py-6">
+      <main className="mx-auto max-w-7xl space-y-4 px-4 py-6">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <h1 className="text-2xl font-semibold text-slate-900">Attendance</h1>
           <DateFilter defaultValue={date} />
@@ -52,13 +52,15 @@ export default async function AdminAttendancePage({
             <table className="min-w-full text-left text-sm">
               <thead className="bg-slate-100 text-xs uppercase text-slate-500">
                 <tr>
-                  <th className="px-4 py-2">Employee</th>
-                  <th className="px-4 py-2">In</th>
-                  <th className="px-4 py-2">Out</th>
-                  <th className="px-4 py-2">Hours</th>
-                  <th className="px-4 py-2">Status</th>
-                  <th className="px-4 py-2">Location</th>
-                  {canWrite ? <th className="px-4 py-2">Actions</th> : null}
+                  <th className="whitespace-nowrap px-4 py-3">Employee</th>
+                  <th className="whitespace-nowrap px-4 py-3">In</th>
+                  <th className="whitespace-nowrap px-4 py-3">Out</th>
+                  <th className="whitespace-nowrap px-4 py-3">Hours</th>
+                  <th className="whitespace-nowrap px-4 py-3">Status</th>
+                  <th className="min-w-[22rem] px-4 py-3">Location</th>
+                  {canWrite ? (
+                    <th className="whitespace-nowrap px-4 py-3">Actions</th>
+                  ) : null}
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -73,19 +75,29 @@ export default async function AdminAttendancePage({
                   </tr>
                 )}
                 {(records ?? []).map((r) => (
-                  <tr key={r.id} className="align-top">
-                    <td className="px-4 py-3">
-                      <p className="font-medium">{r.employees?.name}</p>
+                  <tr key={r.id} className="align-middle">
+                    <td className="whitespace-nowrap px-4 py-3">
+                      <p className="font-medium text-slate-900">
+                        {r.employees?.name}
+                      </p>
                       <p className="text-xs text-slate-400">
                         {r.employees?.employee_id}
                       </p>
                     </td>
-                    <td className="px-4 py-3">{formatTime(r.check_in_time)}</td>
-                    <td className="px-4 py-3">{formatTime(r.check_out_time)}</td>
-                    <td className="px-4 py-3">
+                    <td className="whitespace-nowrap px-4 py-3 text-slate-700">
+                      {formatTime(r.check_in_time)}
+                    </td>
+                    <td className="whitespace-nowrap px-4 py-3 text-slate-700">
+                      {formatTime(r.check_out_time)}
+                    </td>
+                    <td className="whitespace-nowrap px-4 py-3 text-slate-700">
                       {formatMinutes(r.total_work_minutes)}
                     </td>
-                    <td className="px-4 py-3">{r.status}</td>
+                    <td className="whitespace-nowrap px-4 py-3">
+                      <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-700">
+                        {r.status}
+                      </span>
+                    </td>
                     <td className="px-4 py-3">
                       <PunchLocationCell
                         checkInLatitude={r.check_in_latitude}
@@ -103,7 +115,7 @@ export default async function AdminAttendancePage({
                       />
                     </td>
                     {canWrite ? (
-                      <td className="px-4 py-3">
+                      <td className="whitespace-nowrap px-4 py-3">
                         <AttendanceCorrectForm
                           attendanceId={r.id}
                           checkIn={r.check_in_time}

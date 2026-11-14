@@ -65,19 +65,27 @@ export default async function ReportsPage({
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {(records ?? []).map((r) => (
-                  <tr key={r.id} className="align-top">
-                    <td className="px-4 py-3">
+                  <tr key={r.id} className="align-middle">
+                    <td className="whitespace-nowrap px-4 py-3">
                       {formatShortDate(r.attendance_date)}
                     </td>
-                    <td className="px-4 py-3 font-medium">
+                    <td className="whitespace-nowrap px-4 py-3 font-medium">
                       {r.employees?.name}
                     </td>
-                    <td className="px-4 py-3">{formatTime(r.check_in_time)}</td>
-                    <td className="px-4 py-3">{formatTime(r.check_out_time)}</td>
-                    <td className="px-4 py-3">
+                    <td className="whitespace-nowrap px-4 py-3">
+                      {formatTime(r.check_in_time)}
+                    </td>
+                    <td className="whitespace-nowrap px-4 py-3">
+                      {formatTime(r.check_out_time)}
+                    </td>
+                    <td className="whitespace-nowrap px-4 py-3">
                       {formatMinutes(r.total_work_minutes)}
                     </td>
-                    <td className="px-4 py-3">{r.status}</td>
+                    <td className="whitespace-nowrap px-4 py-3">
+                      <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-700">
+                        {r.status}
+                      </span>
+                    </td>
                     <td className="px-4 py-3">
                       <PunchLocationCell
                         checkInLatitude={r.check_in_latitude}

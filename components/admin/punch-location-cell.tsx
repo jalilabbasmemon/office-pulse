@@ -1,4 +1,4 @@
-type PunchCoords = {
+type PunchSide = {
   latitude: number | null;
   longitude: number | null;
   accuracy: number | null;
@@ -12,7 +12,12 @@ function mapUrl(lat: number, lng: number) {
   return `https://www.openstreetmap.org/?mlat=${lat}&mlon=${lng}#map=17/${lat}/${lng}`;
 }
 
-function PunchBlock({
+function formatDistance(meters: number | null) {
+  if (meters == null || Number.isNaN(meters)) return null;
+  return `${Math.round(meters)}m`;
+}
+
+function PunchSideCard({
   latitude,
   longitude,
   accuracy,
@@ -20,49 +25,57 @@ function PunchBlock({
   ip,
   locationName,
   label,
-}: PunchCoords) {
+}: PunchSide) {
   const hasCoords =
     latitude != null &&
     longitude != null &&
     Number.isFinite(latitude) &&
     Number.isFinite(longitude);
 
-  if (!hasCoords && !ip && !locationName) {
-    return (
-      <p className="text-xs text-slate-400">
-        {label}: —
-      </p>
-    );
-  }
+  const empty = !hasCoords && !ip && !locationName;
+  const distance = formatDistance(distanceMeters);
 
   return (
-    <div className="space-y-0.5">
-      <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
-        {label}
-      </p>
-      {locationName ? (
-        <p className="text-xs font-medium text-slate-800">{locationName}</p>
-      ) : null}
-      {hasCoords ? (
-        <a
-          href={mapUrl(latitude, longitude)}
-          target="_blank"
-          rel="noreferrer"
-          className="font-mono text-xs text-teal-700 hover:underline"
-          title="Open in OpenStreetMap"
-        >
-          {latitude.toFixed(5)}, {longitude.toFixed(5)}
-        </a>
+    <div className="min-w-[9.5rem] flex-1 rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-2">
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+          {label}
+        </p>
+        {distance ? (
+          <span className="rounded-full bg-teal-50 px-1.5 py-0.5 text-[10px] font-semibold text-teal-800">
+            {distance}
+          </span>
+        ) : null}
+      </div>
+
+      {empty ? (
+        <p className="mt-1 text-xs text-slate-400">—</p>
       ) : (
-        <p className="text-xs text-slate-500">Wi‑Fi only (no GPS stored)</p>
+        <div className="mt-1 space-y-0.5">
+          <p className="truncate text-xs font-medium text-slate-800">
+            {locationName || (hasCoords ? "GPS punch" : "Office Wi‑Fi")}
+          </p>
+          {hasCoords ? (
+            <a
+              href={mapUrl(latitude, longitude)}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-block text-[11px] font-medium text-teal-700 hover:underline"
+              title={`${latitude.toFixed(5)}, ${longitude.toFixed(5)}`}
+            >
+              View map
+              {accuracy != null ? ` · ±${Math.round(accuracy)}m` : ""}
+            </a>
+          ) : (
+            <p className="text-[11px] text-slate-500">No GPS stored</p>
+          )}
+          {ip ? (
+            <p className="truncate font-mono text-[10px] text-slate-400" title={ip}>
+              {ip}
+            </p>
+          ) : null}
+        </div>
       )}
-      <p className="text-[11px] text-slate-500">
-        {distanceMeters != null ? `${Math.round(distanceMeters)}m from office` : "Distance n/a"}
-        {accuracy != null ? ` · ±${Math.round(accuracy)}m` : ""}
-      </p>
-      {ip ? (
-        <p className="font-mono text-[11px] text-slate-500">IP {ip}</p>
-      ) : null}
     </div>
   );
 }
@@ -95,9 +108,9 @@ export function PunchLocationCell({
   checkOutLocationName?: string | null;
 }) {
   return (
-    <div className="min-w-[11rem] space-y-2">
-      <PunchBlock
-        label="Check-in"
+    <div className="flex min-w-[20rem] gap-2">
+      <PunchSideCard
+        label="In"
         latitude={checkInLatitude}
         longitude={checkInLongitude}
         accuracy={checkInAccuracy}
@@ -105,8 +118,8 @@ export function PunchLocationCell({
         ip={checkInIp}
         locationName={checkInLocationName}
       />
-      <PunchBlock
-        label="Check-out"
+      <PunchSideCard
+        label="Out"
         latitude={checkOutLatitude}
         longitude={checkOutLongitude}
         accuracy={checkOutAccuracy}

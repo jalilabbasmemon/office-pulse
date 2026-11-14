@@ -1,5 +1,5 @@
 /* OfficePulse SW — installability only. Do NOT cache HTML/API (stale settings bug). */
-const CACHE = "officepulse-static-v5";
+const CACHE = "officepulse-static-v6";
 const PRECACHE = [
   "/brand/logo.png",
   "/icons/icon-192.png",

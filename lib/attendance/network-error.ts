@@ -11,7 +11,7 @@ export function networkValidationMessage(
   if (code === "OFFICE_NETWORK_REQUIRED") {
     const expected =
       allowedIps && allowedIps.length > 0 ? allowedIps.join(", ") : "not set";
-    return `Office network not detected. Your public IP is ${requestIp || "unknown"}, but office allows: ${expected}. Switch to office Wi‑Fi (or update Office public IP in Settings).`;
+    return `Office network not detected. Your public IP is ${requestIp || "unknown"}, but office allows: ${expected}. Switch to office Wi‑Fi. On iPhone Safari, turn off iCloud Private Relay / Limit IP Address Tracking for this site, then try again.`;
   }
   if (code === "GPS_ACCURACY_TOO_LOW") {
     return undefined; // default message is fine; UI also shows numbers

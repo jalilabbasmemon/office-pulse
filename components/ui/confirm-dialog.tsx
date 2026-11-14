@@ -52,12 +52,18 @@ export function ConfirmDialog({
   const canConfirm = typedOk && !pending;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-900/40 p-4 sm:items-center">
+    <div
+      className="fixed inset-0 z-[100] flex items-end justify-center bg-slate-900/40 p-4 sm:items-center"
+      onClick={(e) => {
+        if (e.target === e.currentTarget && !pending) onCancel();
+      }}
+    >
       <div
         role="dialog"
         aria-modal="true"
         aria-labelledby="confirm-title"
         className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-5 shadow-xl"
+        onClick={(e) => e.stopPropagation()}
       >
         <h2
           id="confirm-title"

@@ -246,6 +246,9 @@ Apple does **not** show an Install button. You must use **Safari**:
 
 Chrome / in-app browsers on iPhone cannot install OfficePulse reliably, and GPS often fails there.
 
+**If check-in / check-out fails on Safari (Network blocked):**  
+iCloud **Private Relay** (or **Limit IP Address Tracking**) hides your real office public IP. Turn Private Relay **Off** (or exclude this site), stay on office Wi‑Fi, tap **Refresh location & network**, then punch again. Also allow Location → While Using + Precise Location.
+
 If the install tip was dismissed, clear site data for the site or use a private Safari window once.
 
 ---

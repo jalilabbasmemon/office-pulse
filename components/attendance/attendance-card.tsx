@@ -11,6 +11,10 @@ import {
   isEarlyLeave,
   minutesUntilShiftEnd,
 } from "@/lib/attendance/timezone";
+import {
+  acquireLiveGps,
+  LiveGpsError,
+} from "@/lib/location/live-gps";
 import type { Attendance, Employee, OfficeSettings } from "@/types";
 
 type Props = {
@@ -114,17 +118,26 @@ export function AttendanceCard({ employee, today, office: officeProp }: Props) {
   }, []);
 
   const refreshGps = useCallback(() => {
-    if (!navigator.geolocation) {
-      setGpsError("Geolocation is not supported on this device.");
-      return;
-    }
     setGpsError(null);
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
+    void (async () => {
+      try {
+        const reading = await acquireLiveGps({
+          acceptAccuracyMeters: 100,
+          watchMs: 15000,
+          // Punch UI / server enforce max accuracy; still prefer live GPS over IP.
+          rejectCoarse: false,
+          onProgress: (r) => {
+            setGps({
+              latitude: r.latitude,
+              longitude: r.longitude,
+              accuracy: r.accuracy,
+            });
+          },
+        });
         const next = {
-          latitude: pos.coords.latitude,
-          longitude: pos.coords.longitude,
-          accuracy: pos.coords.accuracy,
+          latitude: reading.latitude,
+          longitude: reading.longitude,
+          accuracy: reading.accuracy,
         };
         setGps(next);
         setOffice((current) => {
@@ -140,14 +153,14 @@ export function AttendanceCard({ employee, today, office: officeProp }: Props) {
           }
           return current;
         });
-      },
-      () => {
+      } catch (e) {
         setGpsError(
-          "Location access is required. Please allow location in your browser settings."
+          e instanceof LiveGpsError
+            ? e.message
+            : "Location access is required. Please allow location in your browser settings."
         );
-      },
-      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
-    );
+      }
+    })();
   }, []);
 
   const refreshAll = useCallback(async () => {

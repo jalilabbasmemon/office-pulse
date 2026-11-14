@@ -5,6 +5,10 @@ import { useEffect, useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  acquireLiveGps,
+  LiveGpsError,
+} from "@/lib/location/live-gps";
 import type { OfficeSettings } from "@/types";
 
 const OfficeLocationMap = dynamic(
@@ -28,6 +32,7 @@ export function OfficeSettingsForm({
   settings: OfficeSettings | null;
 }) {
   const [pending, startTransition] = useTransition();
+  const [gpsPending, setGpsPending] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [detectedIp, setDetectedIp] = useState<string | null>(null);
@@ -57,23 +62,37 @@ export function OfficeSettingsForm({
     setForm((prev) => ({ ...prev, [key]: value }));
   }
 
-  function useCurrentLocation() {
-    if (!navigator.geolocation) {
-      setError("Geolocation is not supported.");
-      return;
-    }
+  async function useCurrentLocation() {
     setError(null);
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        update("latitude", Number(pos.coords.latitude.toFixed(6)));
-        update("longitude", Number(pos.coords.longitude.toFixed(6)));
-        setMessage(
-          `Pin moved to your GPS (~${Math.round(pos.coords.accuracy)}m accuracy). Check the map, then save.`
-        );
-      },
-      () => setError("Could not read current location."),
-      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
-    );
+    setMessage("Waiting for live GPS (not IP/city default)…");
+    setGpsPending(true);
+    try {
+      const reading = await acquireLiveGps({
+        acceptAccuracyMeters: 50,
+        watchMs: 15000,
+        rejectCoarse: true,
+        maxAcceptableAccuracyMeters: 500,
+        onProgress: (r) => {
+          setMessage(
+            `Improving GPS… best so far ~${Math.round(r.accuracy)}m. Stay still.`
+          );
+        },
+      });
+      update("latitude", Number(reading.latitude.toFixed(6)));
+      update("longitude", Number(reading.longitude.toFixed(6)));
+      setMessage(
+        `Pin moved to live GPS (~${Math.round(reading.accuracy)}m accuracy). Confirm the building on the map, then save.`
+      );
+    } catch (e) {
+      const msg =
+        e instanceof LiveGpsError
+          ? e.message
+          : "Could not read live GPS location.";
+      setError(msg);
+      setMessage(null);
+    } finally {
+      setGpsPending(false);
+    }
   }
 
   function useDetectedIp() {
@@ -162,11 +181,18 @@ export function OfficeSettingsForm({
             <p className="text-sm font-medium text-slate-900">Office on map</p>
             <p className="text-xs text-slate-500">
               Confirm the pin matches your office building (OpenStreetMap — no
-              Google key).
+              Google key). Laptops often return a city default (e.g. Islamabad)
+              via IP — drag the pin if GPS is coarse.
             </p>
           </div>
-          <Button type="button" variant="outline" size="sm" onClick={useCurrentLocation}>
-            Use my GPS
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={gpsPending}
+            onClick={() => void useCurrentLocation()}
+          >
+            {gpsPending ? "Reading live GPS…" : "Use my GPS"}
           </Button>
         </div>
 

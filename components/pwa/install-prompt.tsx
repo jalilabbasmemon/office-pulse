@@ -99,38 +99,41 @@ export function InstallPrompt() {
         {mode === "ios-other" ? (
           <div className="mt-1 space-y-2 text-xs leading-relaxed text-slate-600">
             <p>
-              On iPhone, OfficePulse must run in <strong>Safari</strong>. In-app
-              browsers (Chrome, WhatsApp, Instagram, etc.) cannot install the
-              app or use GPS reliably.
+              <strong>Apple does not allow Install from Chrome / WhatsApp.</strong>{" "}
+              Open this site in <strong>Safari</strong> first.
             </p>
             <ol className="list-decimal space-y-1 pl-4">
               <li>
-                Tap the <strong>⋯</strong> or Share menu in this browser
+                Tap the <strong>⋯</strong> or Share menu
               </li>
               <li>
                 Choose <strong>Open in Safari</strong>
               </li>
               <li>
-                Then Share → <strong>Add to Home Screen</strong>
+                In Safari: Share → <strong>Add to Home Screen</strong> →{" "}
+                <strong>Add</strong>
               </li>
             </ol>
           </div>
         ) : mode === "ios-safari" ? (
           <div className="mt-1 space-y-2 text-xs leading-relaxed text-slate-600">
-            <p>Install on iPhone (there is no Install button on Apple):</p>
+            <p>
+              <strong>There is no Install button on iPhone.</strong> Use Safari
+              Share instead:
+            </p>
             <ol className="list-decimal space-y-1 pl-4">
               <li>
-                Tap the <strong>Share</strong> button (square with ↑)
+                Tap <strong>Share</strong> (square with ↑) at the bottom of Safari
               </li>
               <li>
-                Scroll and tap <strong>Add to Home Screen</strong>
+                Scroll → <strong>Add to Home Screen</strong>
               </li>
               <li>
                 Tap <strong>Add</strong>
               </li>
             </ol>
             <p>
-              Then allow <strong>Location</strong> when asked so check-in works.
+              Then open the home-screen icon and allow <strong>Location</strong>.
             </p>
           </div>
         ) : deferred ? (

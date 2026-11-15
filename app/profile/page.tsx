@@ -4,6 +4,7 @@ import { getCurrentEmployee } from "@/lib/auth/session";
 import { AppNav } from "@/components/nav";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { IosInstallHelp } from "@/components/pwa/ios-install-help";
 
 export default async function ProfilePage() {
   const employee = await getCurrentEmployee();
@@ -33,6 +34,8 @@ export default async function ProfilePage() {
           />
           <Field label="Status" value={employee.status} />
         </Card>
+
+        <IosInstallHelp />
 
         <Card className="space-y-3">
           <h2 className="font-semibold text-slate-900">Security</h2>

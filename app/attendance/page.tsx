@@ -13,6 +13,7 @@ export default async function AttendanceHistoryPage({
 }) {
   const employee = await getCurrentEmployee();
   if (!employee) redirect("/login");
+  if (employee.role === "ADMIN_VIEWER") redirect("/admin/dashboard");
 
   const params = await searchParams;
   const month = params.month ?? new Date().toISOString().slice(0, 7);

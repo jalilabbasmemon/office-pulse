@@ -147,6 +147,49 @@ export function getAllowedOfficeIps(
   return Array.from(allowed);
 }
 
+/** Collect IPs from every active branch + optional org-level fallback. */
+export function collectOfficeIpsFromLocations(
+  locations: { is_active?: boolean; allowed_public_ips?: string[] | null }[],
+  officePublicIp?: string | null,
+  orgAllowedIps?: string[] | null
+): string[] {
+  const allowed = new Set<string>(
+    getAllowedOfficeIps(officePublicIp, orgAllowedIps)
+  );
+  for (const loc of locations) {
+    if (loc.is_active === false) continue;
+    for (const ip of loc.allowed_public_ips ?? []) {
+      const n = normalizeIp(ip);
+      if (n) allowed.add(n);
+    }
+  }
+  return Array.from(allowed);
+}
+
+/**
+ * Find the active location that owns this public IP.
+ * First matching location by sort order wins.
+ */
+export function matchLocationByPublicIp<
+  T extends {
+    id: string;
+    name: string;
+    is_active?: boolean;
+    allowed_public_ips?: string[] | null;
+  },
+>(requestIp: string, locations: T[]): T | null {
+  const ip = normalizeIp(requestIp);
+  if (!ip) return null;
+  for (const loc of locations) {
+    if (loc.is_active === false) continue;
+    const ips = (loc.allowed_public_ips ?? [])
+      .map((v) => normalizeIp(v))
+      .filter(Boolean);
+    if (ips.includes(ip)) return loc;
+  }
+  return null;
+}
+
 export function isOfficeNetwork(
   requestIp: string,
   officePublicIp: string | null | undefined,

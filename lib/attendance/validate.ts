@@ -2,9 +2,10 @@ import type { GpsPayload, OfficeLocation, OfficeSettings } from "@/types";
 import type { ApiErrorCode } from "@/types";
 import { matchOfficeLocation } from "@/lib/location/match-office";
 import {
-  getAllowedOfficeIps,
+  collectOfficeIpsFromLocations,
   hasOfficeIpConfigured,
   isOfficeNetwork,
+  matchLocationByPublicIp,
   normalizeIp,
 } from "@/lib/network/ip";
 
@@ -34,8 +35,9 @@ export { matchOfficeLocation };
 
 /**
  * Hybrid punch rules:
- * 1) On office Wi‑Fi (public IP match) → GPS not required.
- * 2) On any other network → GPS must match one of the configured office locations.
+ * 1) On a branch Wi‑Fi (public IP match for that location) → GPS not required.
+ * 2) On org-level shared IP allow-list (legacy) → GPS not required, generic label.
+ * 3) On any other network → GPS must match one of the configured office locations.
  */
 export function validateAttendanceLocation(
   gps: GpsPayload | null | undefined,
@@ -54,13 +56,20 @@ export function validateAttendanceLocation(
     };
   }
 
-  const onOfficeWifi =
+  const locationByIp = matchLocationByPublicIp(
+    normalizedRequestIp,
+    activeLocations
+  );
+
+  const onOrgWifi =
     hasOfficeIpConfigured(office.office_public_ip, office.allowed_office_ips) &&
     isOfficeNetwork(
       normalizedRequestIp,
       office.office_public_ip,
       office.allowed_office_ips
     );
+
+  const onOfficeWifi = Boolean(locationByIp) || onOrgWifi;
 
   const hasCoords =
     gps != null &&
@@ -90,6 +99,17 @@ export function validateAttendanceLocation(
 
   // Office Wi‑Fi path: skip GPS when enabled
   if (onOfficeWifi && wifiSkipGpsAllowed(office)) {
+    if (locationByIp) {
+      return {
+        ok: true,
+        distanceMeters: null,
+        requestIp: normalizedRequestIp,
+        wifiOnly: true,
+        storeGps: false,
+        locationId: locationByIp.id,
+        locationName: locationByIp.name,
+      };
+    }
     return {
       ok: true,
       distanceMeters: null,
@@ -106,7 +126,8 @@ export function validateAttendanceLocation(
       ok: false,
       code: "GPS_REQUIRED",
       requestIp: normalizedRequestIp,
-      allowedIps: getAllowedOfficeIps(
+      allowedIps: collectOfficeIpsFromLocations(
+        activeLocations,
         office.office_public_ip,
         office.allowed_office_ips
       ),

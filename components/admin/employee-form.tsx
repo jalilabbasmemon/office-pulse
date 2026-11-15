@@ -141,9 +141,13 @@ export function EmployeeForm({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       });
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        setError(data.message ?? "Save failed");
+        setError(
+          typeof data.message === "string" && data.message.trim()
+            ? data.message
+            : "Could not save employee. Please check the form and try again."
+        );
         return;
       }
 

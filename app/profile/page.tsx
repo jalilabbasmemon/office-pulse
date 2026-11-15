@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 export default async function ProfilePage() {
   const employee = await getCurrentEmployee();
   if (!employee) redirect("/login");
+  if (employee.role === "ADMIN_VIEWER") redirect("/admin/dashboard");
 
   const shift = employee.shifts;
 

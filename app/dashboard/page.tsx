@@ -13,6 +13,8 @@ export default async function DashboardPage() {
   const employee = await getCurrentEmployee();
   if (!employee) redirect("/login");
   if (employee.status !== "ACTIVE") redirect("/login");
+  // Admin viewers stay in the read-only admin area (no punch UI).
+  if (employee.role === "ADMIN_VIEWER") redirect("/admin/dashboard");
   redirectIfMustChangePassword(employee);
 
   const supabase = await createClient();

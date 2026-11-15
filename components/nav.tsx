@@ -31,11 +31,24 @@ const adminLinks = [
   { href: "/change-password", label: "Password" },
 ];
 
+/** Read-only viewer: dashboard, employees, attendance, reports only. */
+const adminViewerLinks = [
+  { href: "/admin/dashboard", label: "Dashboard" },
+  { href: "/admin/employees", label: "Employees" },
+  { href: "/admin/attendance", label: "Attendance" },
+  { href: "/admin/reports", label: "Reports" },
+  { href: "/change-password", label: "Password" },
+];
+
 export function AppNav({ role, name }: NavProps) {
   const pathname = usePathname();
   const router = useRouter();
   const links =
-    role === "ADMIN" || role === "ADMIN_VIEWER" ? adminLinks : employeeLinks;
+    role === "ADMIN"
+      ? adminLinks
+      : role === "ADMIN_VIEWER"
+        ? adminViewerLinks
+        : employeeLinks;
 
   async function logout() {
     const supabase = createClient();

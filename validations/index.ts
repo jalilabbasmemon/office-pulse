@@ -14,23 +14,32 @@ export const loginSchema = z.object({
 export const employeeCreateSchema = z.object({
   employee_id: z
     .string()
-    .min(3)
-    .max(20)
-    .regex(/^[A-Z0-9]+$/, "Use uppercase letters and numbers only")
+    .min(3, "Employee ID must be at least 3 characters")
+    .max(20, "Employee ID is too long")
+    .regex(/^[A-Z0-9]+$/, "Employee ID: use uppercase letters and numbers only")
     .optional(),
-  name: z.string().min(2).max(100),
-  mobile: z.string().min(10).max(15),
-  designation: z.string().min(2).max(100),
+  name: z
+    .string()
+    .min(2, "Name must be at least 2 characters")
+    .max(100, "Name is too long"),
+  mobile: z
+    .string()
+    .min(10, "Phone number must be at least 10 digits")
+    .max(15, "Phone number is too long"),
+  designation: z
+    .string()
+    .min(2, "Designation must be at least 2 characters")
+    .max(100, "Designation is too long"),
   shift_id: z.string().uuid().nullable().optional(),
   role: z.enum(["ADMIN", "ADMIN_VIEWER", "EMPLOYEE"]).default("EMPLOYEE"),
   email: z
     .string()
     .trim()
-    .email()
+    .email("Enter a valid login email address")
     .transform((v) => v.toLowerCase()),
   password: z
     .string()
-    .min(8, "Password must be at least 8 characters")
+    .min(8, "Temporary password must be at least 8 characters")
     .optional(),
 });
 
@@ -46,9 +55,21 @@ export const changePasswordSchema = z
   });
 
 export const employeeUpdateSchema = z.object({
-  name: z.string().min(2).max(100).optional(),
-  mobile: z.string().min(10).max(15).optional(),
-  designation: z.string().min(2).max(100).optional(),
+  name: z
+    .string()
+    .min(2, "Name must be at least 2 characters")
+    .max(100, "Name is too long")
+    .optional(),
+  mobile: z
+    .string()
+    .min(10, "Phone number must be at least 10 digits")
+    .max(15, "Phone number is too long")
+    .optional(),
+  designation: z
+    .string()
+    .min(2, "Designation must be at least 2 characters")
+    .max(100, "Designation is too long")
+    .optional(),
   shift_id: z.string().uuid().nullable().optional(),
   role: z.enum(["ADMIN", "ADMIN_VIEWER", "EMPLOYEE"]).optional(),
   status: z.enum(["ACTIVE", "INACTIVE"]).optional(),
@@ -69,6 +90,8 @@ export const officeLocationSchema = z.object({
   latitude: z.number().min(-90).max(90),
   longitude: z.number().min(-180).max(180),
   allowed_radius_meters: z.number().int().min(10).max(5000),
+  /** Per-branch public Wi‑Fi IPs (Location A → IP A). */
+  allowed_public_ips: z.array(z.string().max(45)).optional().default([]),
   is_active: z.boolean().default(true),
   sort_order: z.number().int().min(0).max(9999).optional(),
 });

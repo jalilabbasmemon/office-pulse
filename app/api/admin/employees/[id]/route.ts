@@ -4,6 +4,7 @@ import { requireAdmin, requireAdminAccess } from "@/lib/auth/session";
 import { writeAuditLog } from "@/lib/auth/audit";
 import { apiError } from "@/lib/attendance/errors";
 import { getRequestIp } from "@/lib/network/ip";
+import { friendlyEmployeeError } from "@/lib/employees/friendly-errors";
 import { employeeUpdateSchema } from "@/validations";
 
 type Ctx = { params: Promise<{ id: string }> };
@@ -50,7 +51,11 @@ export async function PATCH(request: NextRequest, context: Ctx) {
     const body = await request.json();
     const parsed = employeeUpdateSchema.safeParse(body);
     if (!parsed.success) {
-      return apiError("VALIDATION_ERROR", 400, parsed.error.issues[0]?.message);
+      return apiError(
+        "VALIDATION_ERROR",
+        400,
+        friendlyEmployeeError(parsed.error.issues[0]?.message)
+      );
     }
 
     const supabase = await createClient();
@@ -60,7 +65,13 @@ export async function PATCH(request: NextRequest, context: Ctx) {
       .eq("id", id)
       .maybeSingle();
 
-    if (!old) return apiError("VALIDATION_ERROR", 404, "Employee not found");
+    if (!old) {
+      return apiError(
+        "VALIDATION_ERROR",
+        404,
+        "Employee not found. Refresh the page and try again."
+      );
+    }
 
     const { data: employee, error } = await supabase
       .from("employees")
@@ -69,7 +80,13 @@ export async function PATCH(request: NextRequest, context: Ctx) {
       .select("*, shifts(*)")
       .single();
 
-    if (error) return apiError("VALIDATION_ERROR", 400, error.message);
+    if (error) {
+      return apiError(
+        "VALIDATION_ERROR",
+        400,
+        friendlyEmployeeError(error.message)
+      );
+    }
 
     await writeAuditLog({
       adminId: admin.id,

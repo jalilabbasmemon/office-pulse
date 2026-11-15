@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentEmployee } from "@/lib/auth/session";
-import { canWriteAdmin, isAdminStaff } from "@/lib/auth/roles";
+import { canAccessAdminPath, canWriteAdmin, isAdminStaff } from "@/lib/auth/roles";
 import { AppNav } from "@/components/nav";
 import { Card, CardTitle } from "@/components/ui/card";
 import { OfficeSettingsForm } from "@/components/admin/office-settings-form";
@@ -11,6 +11,9 @@ export default async function SettingsPage() {
   const employee = await getCurrentEmployee();
   if (!employee) redirect("/login");
   if (!isAdminStaff(employee.role)) redirect("/dashboard");
+  if (!canAccessAdminPath(employee.role, "/admin/settings")) {
+    redirect("/admin/dashboard");
+  }
 
   const supabase = await createClient();
   const [{ data: settings }, { data: locations }] = await Promise.all([

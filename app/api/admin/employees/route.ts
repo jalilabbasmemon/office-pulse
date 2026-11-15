@@ -8,6 +8,7 @@ import {
   generateTempPassword,
   nextEmployeeId,
 } from "@/lib/employees/generate";
+import { friendlyEmployeeError } from "@/lib/employees/friendly-errors";
 import { employeeCreateSchema } from "@/validations";
 
 export async function GET() {
@@ -37,7 +38,11 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const parsed = employeeCreateSchema.safeParse(body);
     if (!parsed.success) {
-      return apiError("VALIDATION_ERROR", 400, parsed.error.issues[0]?.message);
+      return apiError(
+        "VALIDATION_ERROR",
+        400,
+        friendlyEmployeeError(parsed.error.issues[0]?.message)
+      );
     }
 
     const supabase = await createClient();
@@ -74,7 +79,10 @@ export async function POST(request: NextRequest) {
       return apiError(
         "VALIDATION_ERROR",
         400,
-        authError?.message ?? "Could not create auth user"
+        friendlyEmployeeError(
+          authError?.message,
+          "Could not create login account. Check the email and try again."
+        )
       );
     }
 
@@ -96,7 +104,11 @@ export async function POST(request: NextRequest) {
 
     if (error) {
       await service.auth.admin.deleteUser(authData.user.id);
-      return apiError("VALIDATION_ERROR", 400, error.message);
+      return apiError(
+        "VALIDATION_ERROR",
+        400,
+        friendlyEmployeeError(error.message)
+      );
     }
 
     await writeAuditLog({

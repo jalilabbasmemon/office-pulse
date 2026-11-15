@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentEmployee } from "@/lib/auth/session";
-import { canWriteAdmin, isAdminStaff } from "@/lib/auth/roles";
+import { canAccessAdminPath, canWriteAdmin, isAdminStaff } from "@/lib/auth/roles";
 import { AppNav } from "@/components/nav";
 import { ShiftsManager } from "@/components/admin/shifts-manager";
 import type { Shift } from "@/types";
@@ -10,6 +10,9 @@ export default async function ShiftsPage() {
   const employee = await getCurrentEmployee();
   if (!employee) redirect("/login");
   if (!isAdminStaff(employee.role)) redirect("/dashboard");
+  if (!canAccessAdminPath(employee.role, "/admin/shifts")) {
+    redirect("/admin/dashboard");
+  }
 
   const supabase = await createClient();
   const { data: shifts } = await supabase

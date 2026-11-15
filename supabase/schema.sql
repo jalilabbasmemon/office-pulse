@@ -52,6 +52,8 @@ create table if not exists office_locations (
   longitude double precision not null,
   allowed_radius_meters integer not null default 150
     check (allowed_radius_meters between 10 and 5000),
+  -- Public Wi‑Fi egress IPs for this branch (Location A → IP A, etc.)
+  allowed_public_ips text[] not null default '{}',
   is_active boolean not null default true,
   sort_order integer not null default 0,
   created_at timestamptz not null default now(),

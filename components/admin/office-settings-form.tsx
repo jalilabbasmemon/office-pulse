@@ -33,6 +33,8 @@ type LocDraft = {
   latitude: number;
   longitude: number;
   allowed_radius_meters: number;
+  /** Comma-separated public IPs for this branch’s Wi‑Fi. */
+  allowed_public_ips: string;
   is_active: boolean;
 };
 
@@ -44,6 +46,7 @@ function toDraft(loc: OfficeLocation): LocDraft {
     latitude: loc.latitude,
     longitude: loc.longitude,
     allowed_radius_meters: loc.allowed_radius_meters,
+    allowed_public_ips: (loc.allowed_public_ips ?? []).join(", "),
     is_active: loc.is_active,
   };
 }
@@ -55,8 +58,16 @@ function defaultLocation(name = "HQ"): LocDraft {
     latitude: 24.8607,
     longitude: 67.0011,
     allowed_radius_meters: 150,
+    allowed_public_ips: "",
     is_active: true,
   };
+}
+
+function parseIpList(value: string): string[] {
+  return value
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
 }
 
 export function OfficeSettingsForm({
@@ -87,6 +98,7 @@ export function OfficeSettingsForm({
               latitude: settings.latitude,
               longitude: settings.longitude,
               allowed_radius_meters: settings.allowed_radius_meters,
+              allowed_public_ips: settings.office_public_ip ?? "",
               is_active: true,
               id: undefined,
             },
@@ -165,14 +177,19 @@ export function OfficeSettingsForm({
     }
   }
 
-  function useDetectedIp() {
+  function useDetectedIpForLocation() {
     if (!detectedIp || detectedIp === "0.0.0.0") {
       setError("Could not detect your public IP yet. Refresh and try again.");
       return;
     }
-    updateForm("office_public_ip", detectedIp);
+    const current = locations[activeIndex]?.allowed_public_ips ?? "";
+    const existing = parseIpList(current);
+    if (!existing.includes(detectedIp)) {
+      existing.push(detectedIp);
+    }
+    updateLoc(activeIndex, "allowed_public_ips", existing.join(", "));
     setMessage(
-      `Filled office public IP: ${detectedIp}. Save while on office Wi‑Fi.`
+      `Added ${detectedIp} to ${locations[activeIndex]?.name || "this location"}. Save while on that branch Wi‑Fi.`
     );
   }
 
@@ -220,6 +237,7 @@ export function OfficeSettingsForm({
           latitude: Number(loc.latitude),
           longitude: Number(loc.longitude),
           allowed_radius_meters: Number(loc.allowed_radius_meters),
+          allowed_public_ips: parseIpList(loc.allowed_public_ips),
           is_active: loc.is_active,
           sort_order: i,
         })),
@@ -256,8 +274,8 @@ export function OfficeSettingsForm({
           <p className="font-medium text-slate-800">How punch checks work</p>
           <ul className="mt-1 list-disc space-y-1 pl-4">
             <li>
-              <strong>Office Wi‑Fi</strong> (matching public IP) → GPS not
-              required.
+              <strong>Branch Wi‑Fi</strong> (that location’s public IP) → GPS
+              not required; punch is labeled with that location.
             </li>
             <li>
               <strong>Any other network</strong> → must be inside one HQ /
@@ -289,7 +307,8 @@ export function OfficeSettingsForm({
                 Office locations
               </p>
               <p className="text-xs text-slate-500">
-                Add HQ and every branch. Each has its own pin and radius.
+                Add HQ and every branch. Each has its own pin, radius, and
+                public Wi‑Fi IP(s).
               </p>
             </div>
             {!readOnly ? (
@@ -351,6 +370,33 @@ export function OfficeSettingsForm({
               value={active.address}
               onChange={(e) => updateLoc(activeIndex, "address", e.target.value)}
             />
+          </div>
+
+          <div>
+            <div className="mb-1.5 flex items-center justify-between gap-2">
+              <Label htmlFor="loc_ips" className="mb-0">
+                Public Wi‑Fi IP(s) for this location
+              </Label>
+              <button
+                type="button"
+                className="text-xs font-medium text-teal-700 hover:underline"
+                onClick={useDetectedIpForLocation}
+              >
+                Use my current IP
+              </button>
+            </div>
+            <Input
+              id="loc_ips"
+              placeholder="e.g. 203.0.113.10, 203.0.113.11"
+              value={active.allowed_public_ips}
+              onChange={(e) =>
+                updateLoc(activeIndex, "allowed_public_ips", e.target.value)
+              }
+            />
+            <p className="mt-1 text-xs text-slate-500">
+              Comma-separated. Connect to this branch’s Wi‑Fi, then click “Use my
+              current IP”. Location A and Location B can have different IPs.
+            </p>
           </div>
 
           <label className="flex items-center gap-2 text-sm text-slate-700">
@@ -478,33 +524,31 @@ export function OfficeSettingsForm({
           </span>
         </label>
 
-        <div>
-          <div className="mb-1.5 flex items-center justify-between gap-2">
-            <Label htmlFor="ip" className="mb-0">
-              Office public IP
-            </Label>
-            <button
-              type="button"
-              className="text-xs font-medium text-teal-700 hover:underline"
-              onClick={useDetectedIp}
-            >
-              Use my current IP
-            </button>
+        <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-3 space-y-3">
+          <p className="text-sm font-medium text-slate-800">
+            Shared / legacy org IPs (optional)
+          </p>
+          <p className="text-xs text-slate-500">
+            Prefer setting IPs on each location above. These org-wide IPs still
+            work as a fallback for any branch (punch labeled “Office Wi‑Fi”).
+          </p>
+          <div>
+            <Label htmlFor="ip">Primary shared public IP</Label>
+            <Input
+              id="ip"
+              placeholder="123.123.123.123"
+              value={form.office_public_ip}
+              onChange={(e) => updateForm("office_public_ip", e.target.value)}
+            />
           </div>
-          <Input
-            id="ip"
-            placeholder="123.123.123.123"
-            value={form.office_public_ip}
-            onChange={(e) => updateForm("office_public_ip", e.target.value)}
-          />
-        </div>
-        <div>
-          <Label htmlFor="ips">Additional office IPs (comma-separated)</Label>
-          <Input
-            id="ips"
-            value={form.allowed_office_ips}
-            onChange={(e) => updateForm("allowed_office_ips", e.target.value)}
-          />
+          <div>
+            <Label htmlFor="ips">Additional shared IPs (comma-separated)</Label>
+            <Input
+              id="ips"
+              value={form.allowed_office_ips}
+              onChange={(e) => updateForm("allowed_office_ips", e.target.value)}
+            />
+          </div>
         </div>
         <div>
           <Label htmlFor="timezone">Timezone</Label>

@@ -16,7 +16,7 @@ function dbMessage(err: unknown): string {
 }
 
 function needsLocationsMigration(message: string): boolean {
-  return /office_locations|does not exist|schema cache|Could not find the table/i.test(
+  return /office_locations|allowed_public_ips|does not exist|schema cache|Could not find the table/i.test(
     message
   );
 }
@@ -197,6 +197,7 @@ export async function PATCH(request: NextRequest) {
         latitude: loc.latitude,
         longitude: loc.longitude,
         allowed_radius_meters: loc.allowed_radius_meters,
+        allowed_public_ips: loc.allowed_public_ips ?? [],
         is_active: loc.is_active,
         sort_order: loc.sort_order ?? i,
       };

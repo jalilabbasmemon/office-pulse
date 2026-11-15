@@ -30,8 +30,23 @@ const hq: OfficeLocation = {
   latitude: 24.8607,
   longitude: 67.0011,
   allowed_radius_meters: 150,
+  allowed_public_ips: [],
   is_active: true,
   sort_order: 0,
+  created_at: "",
+  updated_at: "",
+};
+
+const branchB: OfficeLocation = {
+  id: "loc-2",
+  name: "Branch B",
+  address: null,
+  latitude: 24.87,
+  longitude: 67.02,
+  allowed_radius_meters: 120,
+  allowed_public_ips: ["198.51.100.20"],
+  is_active: true,
+  sort_order: 1,
   created_at: "",
   updated_at: "",
 };
@@ -74,6 +89,25 @@ test.describe("validateAttendanceLocation matrix @P0", () => {
     if (result.ok) {
       expect(result.wifiOnly).toBe(true);
       expect(result.locationName).toBe("Office Wi‑Fi");
+    }
+  });
+
+  test("GEO-003b per-location IP labels that branch on wifi-only punch", () => {
+    const result = validateAttendanceLocation(
+      null,
+      office({
+        allow_wifi_only_punch: true,
+        office_public_ip: null,
+        allowed_office_ips: [],
+      }),
+      [hq, branchB],
+      "198.51.100.20"
+    );
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.wifiOnly).toBe(true);
+      expect(result.locationId).toBe("loc-2");
+      expect(result.locationName).toBe("Branch B");
     }
   });
 

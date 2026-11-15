@@ -36,6 +36,8 @@ export type OfficeLocation = {
   latitude: number;
   longitude: number;
   allowed_radius_meters: number;
+  /** Public egress IPs for this branch’s Wi‑Fi (optional; multiple allowed). */
+  allowed_public_ips?: string[];
   is_active: boolean;
   sort_order: number;
   created_at?: string;
